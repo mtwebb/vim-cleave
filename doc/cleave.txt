@@ -1,0 +1,40 @@
+*cleave.txt*    For Vim version 8.0
+
+==============================================================================
+CONTENTS                                     *cleave-contents*
+
+  1. Introduction...................|cleave-introduction|
+  2. Commands.......................|cleave-commands|
+  3. Options........................|cleave-options|
+
+==============================================================================
+INTRODUCTION                                 *cleave-introduction*
+
+Vim-cleave is a plugin that splits a buffer's content vertically at a
+specified column, creating separate left and right buffers while maintaining
+spatial positioning. This is useful for editing files with distinct left and
+right sides, such as diffs or files with line numbers.
+
+==============================================================================
+COMMANDS                                     *cleave-commands*
+
+*:Cleave*
+    Splits the current buffer at the cursor position. The width of the new
+    left window will be set to the cursor column.
+
+*:CleaveAt {column}*
+    Splits the current buffer at the specified {column}. The width of the
+    new left window will be set to {column}.
+
+*:CleaveUndo*
+    Restores the original buffer and closes the cleaved windows.
+
+==============================================================================
+OPTIONS                                      *cleave-options*
+
+*g:cleave_auto_sync*
+    When set to `v:true`, changes in one of the cleaved buffers will be
+    reflected in the other. This is useful for keeping the buffers in sync
+    while editing.
+
+    Default: `v:false`

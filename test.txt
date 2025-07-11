@@ -1,2 +1,5 @@
-This is the left side.This is the right side.
-This is also the left side.This is also the right side.
+vim: colorcolumn=33
+This is the left side.          This is the right side.
+This is also the left side.     This is also the right side.
+The text should be split at 
+column 33
