@@ -103,47 +103,43 @@ function! cleave#undo_cleave()
         return
     endif
 
-    " Find the left and right buffers
-    let buflist = getbufinfo({'buflisted': 1})
+    " Find the left and right buffers by iterating through all existing buffers
     let left_bufnr = -1
     let right_bufnr = -1
-
-    for buf in buflist
-        if getbufvar(buf.bufnr, 'cleave_original', -1) == original_bufnr
-            if getbufvar(buf.bufnr, 'cleave_side', '') == 'left'
-                let left_bufnr = buf.bufnr
-            elseif getbufvar(buf.bufnr, 'cleave_side', '') == 'right'
-                let right_bufnr = buf.bufnr
+    for i in range(1, bufnr("$"))
+        if bufexists(i) && getbufvar(i, 'cleave_original', -1) == original_bufnr
+            if getbufvar(i, 'cleave_side', '') == 'left'
+                let left_bufnr = i
+            elseif getbufvar(i, 'cleave_side', '') == 'right'
+                let right_bufnr = i
             endif
         endif
     endfor
 
-    " Restore the original buffer
-    execute 'buffer' original_bufnr
+    " Find the windows associated with the buffers
+    let left_win_id = get(win_findbuf(left_bufnr), 0, -1)
+    let right_win_id = get(win_findbuf(right_bufnr), 0, -1)
 
-    " Close the cleave windows
-    if left_bufnr != -1
-        let win_ids = win_findbuf(left_bufnr)
-        for win_id in win_ids
-            execute win_id . 'close'
-        endfor
+    " Restore the original buffer and close the windows
+    if left_win_id != -1
+        call win_gotoid(left_win_id)
+        execute 'buffer' original_bufnr
+    else
+        execute 'buffer' original_bufnr
     endif
 
-    if right_bufnr != -1
-        let win_ids = win_findbuf(right_bufnr)
-        for win_id in win_ids
-            execute win_id . 'close'
-        endfor
+    if right_win_id != -1
+        call win_gotoid(right_win_id)
+        close
     endif
 
-    " Delete the cleave buffers
-    if left_bufnr != -1
+    " Finally, delete the temporary buffers
+    if bufexists(left_bufnr)
         execute 'bdelete!' left_bufnr
     endif
-    if right_bufnr != -1
+    if bufexists(right_bufnr)
         execute 'bdelete!' right_bufnr
     endif
-
 endfunction
 
 function! cleave#sync_buffers()
@@ -175,12 +171,8 @@ function! cleave#sync_buffers()
     endif
 
     " Combine the lines from both buffers
-    let left_lines = (side == 'left') ? getline(1, '
-) : getbufline(other_bufnr, 1, '
-)
-    let right_lines = (side == 'right') ? getline(1, '
-) : getbufline(other_bufnr, 1, '
-)
+    let left_lines = (side == 'left') ? getline(1, '$') : getbufline(other_bufnr, 1, '$')
+    let right_lines = (side == 'right') ? getline(1, '$') : getbufline(other_bufnr, 1, '$')
 
     let combined_lines = []
     for i in range(len(left_lines))
