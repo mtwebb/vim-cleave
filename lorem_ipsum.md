@@ -1,4 +1,4 @@
-vim: colorcolumn=91 tw=79
+vim: colorcolumn=91 tw=79 virtualedit=all
                                                                                      
 Sapien eget mi proin sed. Scelerisque felis imperdiet proin fermentum leo.         
 Eget aliquet nibh praesent tristique magna sit. Interdum velit laoreet id donec      
