@@ -67,8 +67,8 @@ endfunction
 
 function! cleave#create_buffers(left_lines, right_lines, original_name, original_foldcolumn)
     " Create left buffer
-    execute 'enew'
-    execute 'file ' . fnameescape(a:original_name . '.left')
+    silent execute 'enew'
+    silent execute 'file ' . fnameescape(a:original_name . '.left')
     let left_bufnr = bufnr('%')
     call setline(1, a:left_lines)
     setlocal buftype=nofile
@@ -77,8 +77,8 @@ function! cleave#create_buffers(left_lines, right_lines, original_name, original
     execute 'setlocal foldcolumn=' . a:original_foldcolumn
     
     " Create right buffer
-    execute 'enew'
-    execute 'file ' . fnameescape(a:original_name . '.right')
+    silent execute 'enew'
+    silent execute 'file ' . fnameescape(a:original_name . '.right')
     let right_bufnr = bufnr('%')
     call setline(1, a:right_lines)
     setlocal buftype=nofile
@@ -247,13 +247,9 @@ function! cleave#join_buffers()
     endfor
 
     " Update the original buffer
+    " First clear the buffer, then set new content
+    call deletebufline(original_bufnr, 1, '$')
     call setbufline(original_bufnr, 1, combined_lines)
-    
-    " Remove any extra lines if the combined content is shorter
-    let original_line_count = len(getbufline(original_bufnr, 1, '$'))
-    if len(combined_lines) < original_line_count
-        execute 'silent ' . original_bufnr . 'bufdo ' . (len(combined_lines) + 1) . ',$delete'
-    endif
 
     " Find the windows associated with the buffers
     let left_win_id = get(win_findbuf(left_bufnr), 0, -1)
