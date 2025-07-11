@@ -18,14 +18,14 @@ function! cleave#split_buffer(bufnr, ...)
     let original_winid = win_getid()
     let original_cursor = getcurpos()
 
-    echomsg "original_bufnr: " . original_bufnr
-    echomsg "original_winid: " . original_winid
-    echomsg "last_line_in_original_buf: " . line('$')
+    "echomsg "original_bufnr: " . original_bufnr
+    "echomsg "original_winid: " . original_winid
+    "echomsg "last_line_in_original_buf: " . line('$')
 
     " 2. Content Extraction
     let original_lines = getbufline(original_bufnr, 1, '$')
     "echomsg "original_lines: " . string(original_lines)
-    echomsg "cleave_col: " . cleave_col
+    "echomsg "cleave_col: " . cleave_col
     let [left_lines, right_lines] = cleave#split_content(original_lines, cleave_col)
 
     " 3. Buffer Creation
@@ -33,16 +33,19 @@ function! cleave#split_buffer(bufnr, ...)
     if empty(original_name)
         let original_name = 'noname'
     endif
-    let [left_bufnr, right_bufnr] = cleave#create_buffers(left_lines, right_lines, original_name)
+    let original_foldcolumn = &foldcolumn
+    let [left_bufnr, right_bufnr] = cleave#create_buffers(left_lines, right_lines, original_name, original_foldcolumn)
 
     " 4. Window Management
-    call cleave#setup_windows(cleave_col, left_bufnr, right_bufnr, original_winid, original_cursor)
+    call cleave#setup_windows(cleave_col, left_bufnr, right_bufnr, original_winid, original_cursor, original_foldcolumn)
 
     " 5. Set buffer variables for potential undo
     call setbufvar(left_bufnr, 'cleave_original', original_bufnr)
     call setbufvar(left_bufnr, 'cleave_side', 'left')
+    call setbufvar(left_bufnr, 'cleave_col', cleave_col)
     call setbufvar(right_bufnr, 'cleave_original', original_bufnr)
     call setbufvar(right_bufnr, 'cleave_side', 'right')
+    call setbufvar(right_bufnr, 'cleave_col', cleave_col)
 
 endfunction
 
@@ -62,7 +65,7 @@ function! cleave#split_content(lines, cleave_col)
     return [left_lines, right_lines]
 endfunction
 
-function! cleave#create_buffers(left_lines, right_lines, original_name)
+function! cleave#create_buffers(left_lines, right_lines, original_name, original_foldcolumn)
     " Create left buffer
     execute 'enew'
     execute 'file ' . fnameescape(a:original_name . '.left')
@@ -71,7 +74,7 @@ function! cleave#create_buffers(left_lines, right_lines, original_name)
     setlocal buftype=nofile
     setlocal bufhidden=hide
     setlocal noswapfile
-    setlocal foldcolumn=5
+    execute 'setlocal foldcolumn=' . a:original_foldcolumn
     
     " Create right buffer
     execute 'enew'
@@ -86,12 +89,12 @@ function! cleave#create_buffers(left_lines, right_lines, original_name)
     return [left_bufnr, right_bufnr]
 endfunction
 
-function! cleave#setup_windows(cleave_col, left_bufnr, right_bufnr, original_winid, original_cursor)
+function! cleave#setup_windows(cleave_col, left_bufnr, right_bufnr, original_winid, original_cursor, original_foldcolumn)
     call win_gotoid(a:original_winid)
     vsplit
     
     execute 'buffer' a:left_bufnr
-    execute 'vertical resize ' . (a:cleave_col - 2)
+    execute 'vertical resize ' . (a:cleave_col - 2 + a:original_foldcolumn)
     call cursor(a:original_cursor[1], a:original_cursor[2])
     set scrollbind
 
@@ -192,6 +195,96 @@ function! cleave#sync_buffers()
     " Update the original buffer
     call setbufline(original_bufnr, 1, combined_lines)
 
+endfunction
+
+function! cleave#join_buffers()
+    let current_bufnr = bufnr('%')
+    let original_bufnr = getbufvar(current_bufnr, 'cleave_original', -1)
+    let cleave_col = getbufvar(current_bufnr, 'cleave_col', -1)
+
+    if original_bufnr == -1 || cleave_col == -1
+        echoerr "Cleave: Not a cleave buffer or missing cleave column."
+        return
+    endif
+
+    " Find the left and right buffers
+    let left_bufnr = -1
+    let right_bufnr = -1
+    for i in range(1, bufnr("$"))
+        if bufexists(i) && getbufvar(i, 'cleave_original', -1) == original_bufnr
+            if getbufvar(i, 'cleave_side', '') == 'left'
+                let left_bufnr = i
+            elseif getbufvar(i, 'cleave_side', '') == 'right'
+                let right_bufnr = i
+            endif
+        endif
+    endfor
+
+    if left_bufnr == -1 || right_bufnr == -1
+        echoerr "Cleave: Could not find both left and right buffers."
+        return
+    endif
+
+    " Get content from both buffers
+    let left_lines = getbufline(left_bufnr, 1, '$')
+    let right_lines = getbufline(right_bufnr, 1, '$')
+
+    " Combine the content
+    let combined_lines = []
+    let max_lines = max([len(left_lines), len(right_lines)])
+    
+    for i in range(max_lines)
+        let left_line = (i < len(left_lines)) ? left_lines[i] : ''
+        let right_line = (i < len(right_lines)) ? right_lines[i] : ''
+        
+        " Calculate padding needed to reach cleave_col
+        let left_len = len(left_line)
+        let padding_needed = cleave_col - 1 - left_len
+        let padding = padding_needed > 0 ? repeat(' ', padding_needed) : ''
+        
+        let combined_line = left_line . padding . right_line
+        call add(combined_lines, combined_line)
+    endfor
+
+    " Update the original buffer
+    call setbufline(original_bufnr, 1, combined_lines)
+    
+    " Remove any extra lines if the combined content is shorter
+    let original_line_count = len(getbufline(original_bufnr, 1, '$'))
+    if len(combined_lines) < original_line_count
+        execute 'silent ' . original_bufnr . 'bufdo ' . (len(combined_lines) + 1) . ',$delete'
+    endif
+
+    " Find the windows associated with the buffers
+    let left_win_id = get(win_findbuf(left_bufnr), 0, -1)
+    let right_win_id = get(win_findbuf(right_bufnr), 0, -1)
+
+    " Switch left window to original buffer
+    if left_win_id != -1
+        call win_gotoid(left_win_id)
+        execute 'buffer' original_bufnr
+    endif
+
+    " Close the right window
+    if right_win_id != -1
+        call win_gotoid(right_win_id)
+        close
+    endif
+
+    " Delete the temporary buffers without saving
+    if bufexists(left_bufnr)
+        execute 'bdelete!' left_bufnr
+    endif
+    if bufexists(right_bufnr)
+        execute 'bdelete!' right_bufnr
+    endif
+
+    " Return to the original buffer window
+    if left_win_id != -1
+        call win_gotoid(left_win_id)
+    endif
+
+    echomsg "Cleave: Buffers joined successfully."
 endfunction
 
 augroup cleave_sync

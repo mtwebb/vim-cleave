@@ -12,3 +12,4 @@ endif
 command! -nargs=? Cleave call cleave#split_buffer(bufnr('%'), <f-args>)
 command! -nargs=1 CleaveAt call cleave#split_buffer(winbufnr(0), <args>)
 command! CleaveUndo call cleave#undo_cleave()
+command! CleaveJoin call cleave#join_buffers()
