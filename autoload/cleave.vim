@@ -85,6 +85,7 @@ function! cleave#create_buffers(left_lines, right_lines, original_name, original
     setlocal bufhidden=hide
     setlocal noswapfile
     setlocal foldcolumn=0
+    setlocal filetype=right
 
     return [left_bufnr, right_bufnr]
 endfunction
@@ -229,13 +230,13 @@ function! cleave#join_buffers()
     let left_lines = getbufline(left_bufnr, 1, '$')
     let right_lines = getbufline(right_bufnr, 1, '$')
     
-    echomsg "Debug: left_lines: " . string(left_lines)
-    echomsg "Debug: right_lines: " . string(right_lines)
-    echomsg "Debug: cleave_col: " . cleave_col
-    echomsg "Debug: original_bufnr: " . original_bufnr
-    echomsg "Debug: original_buffer_name: " . bufname(original_bufnr)
-    echomsg "Debug: original_buffer_exists: " . bufexists(original_bufnr)
-    echomsg "Debug: original_buffer_loaded: " . bufloaded(original_bufnr)
+    "echomsg "Debug: left_lines: " . string(left_lines)
+    "echomsg "Debug: right_lines: " . string(right_lines)
+    "echomsg "Debug: cleave_col: " . cleave_col
+    "echomsg "Debug: original_bufnr: " . original_bufnr
+    "echomsg "Debug: original_buffer_name: " . bufname(original_bufnr)
+    "echomsg "Debug: original_buffer_exists: " . bufexists(original_bufnr)
+    "echomsg "Debug: original_buffer_loaded: " . bufloaded(original_bufnr)
 
     " Combine the content
     let combined_lines = []
