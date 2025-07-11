@@ -20,11 +20,11 @@ function! cleave#split_buffer(bufnr, ...)
 
     echomsg "original_bufnr: " . original_bufnr
     echomsg "original_winid: " . original_winid
-    echomsg "last_line_in_original_buf: " . line('$', original_bufnr)
+    echomsg "last_line_in_original_buf: " . line('$')
 
     " 2. Content Extraction
-    let original_lines = getbufline(original_bufnr, 1, line('$', original_bufnr))
-    echomsg "original_lines: " . string(original_lines)
+    let original_lines = getbufline(original_bufnr, 1, '$')
+    "echomsg "original_lines: " . string(original_lines)
     echomsg "cleave_col: " . cleave_col
     let [left_lines, right_lines] = cleave#split_content(original_lines, cleave_col)
 
@@ -57,28 +57,31 @@ function! cleave#split_content(lines, cleave_col)
         call add(left_lines, left_part)
         call add(right_lines, right_part)
     endfor
-    echomsg "left_lines: " . string(left_lines)
-    echomsg "right_lines: " . string(right_lines)
+    "echomsg "left_lines: " . string(left_lines)
+    "echomsg "right_lines: " . string(right_lines)
     return [left_lines, right_lines]
 endfunction
 
 function! cleave#create_buffers(left_lines, right_lines, original_name)
     " Create left buffer
     execute 'enew'
-    let left_bufnr = bufnr(a:original_name . '.left', 1)
-    call setbufline(left_bufnr, 1, a:left_lines)
-    call setbufline(left_bufnr, 1, a:left_lines)
-    call setbufvar(left_bufnr, '&buftype', 'nofile')
-    call setbufvar(left_bufnr, '&bufhidden', 'hide')
-    call setbufvar(left_bufnr, '&swapfile', 0)
+    execute 'file ' . fnameescape(a:original_name . '.left')
+    let left_bufnr = bufnr('%')
+    call setline(1, a:left_lines)
+    setlocal buftype=nofile
+    setlocal bufhidden=hide
+    setlocal noswapfile
+    setlocal foldcolumn=5
     
     " Create right buffer
     execute 'enew'
-    let right_bufnr = bufnr(a:original_name . '.right', 1)
-    call setbufline(right_bufnr, 1, a:right_lines)
-    call setbufvar(right_bufnr, '&buftype', 'nofile')
-    call setbufvar(right_bufnr, '&bufhidden', 'hide')
-    call setbufvar(right_bufnr, '&swapfile', 0)
+    execute 'file ' . fnameescape(a:original_name . '.right')
+    let right_bufnr = bufnr('%')
+    call setline(1, a:right_lines)
+    setlocal buftype=nofile
+    setlocal bufhidden=hide
+    setlocal noswapfile
+    setlocal foldcolumn=0
 
     return [left_bufnr, right_bufnr]
 endfunction
@@ -88,7 +91,7 @@ function! cleave#setup_windows(cleave_col, left_bufnr, right_bufnr, original_win
     vsplit
     
     execute 'buffer' a:left_bufnr
-    execute 'vertical resize ' . (a:cleave_col - 1)
+    execute 'vertical resize ' . (a:cleave_col - 2)
     call cursor(a:original_cursor[1], a:original_cursor[2])
     set scrollbind
 
