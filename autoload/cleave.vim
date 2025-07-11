@@ -228,6 +228,14 @@ function! cleave#join_buffers()
     " Get content from both buffers
     let left_lines = getbufline(left_bufnr, 1, '$')
     let right_lines = getbufline(right_bufnr, 1, '$')
+    
+    echomsg "Debug: left_lines: " . string(left_lines)
+    echomsg "Debug: right_lines: " . string(right_lines)
+    echomsg "Debug: cleave_col: " . cleave_col
+    echomsg "Debug: original_bufnr: " . original_bufnr
+    echomsg "Debug: original_buffer_name: " . bufname(original_bufnr)
+    echomsg "Debug: original_buffer_exists: " . bufexists(original_bufnr)
+    echomsg "Debug: original_buffer_loaded: " . bufloaded(original_bufnr)
 
     " Combine the content
     let combined_lines = []
@@ -246,10 +254,21 @@ function! cleave#join_buffers()
         call add(combined_lines, combined_line)
     endfor
 
+    echomsg "Debug: combined_lines: " . string(combined_lines)
+
     " Update the original buffer
+    " Load the buffer first if it's not loaded
+    if !bufloaded(original_bufnr)
+        echomsg "Debug: Loading unloaded buffer"
+        call bufload(original_bufnr)
+    endif
+    
     " First clear the buffer, then set new content
+    echomsg "Debug: Before deletebufline - original buffer lines: " . string(getbufline(original_bufnr, 1, '$'))
     call deletebufline(original_bufnr, 1, '$')
+    echomsg "Debug: After deletebufline - original buffer lines: " . string(getbufline(original_bufnr, 1, '$'))
     call setbufline(original_bufnr, 1, combined_lines)
+    echomsg "Debug: After setbufline - original buffer lines: " . string(getbufline(original_bufnr, 1, '$'))
 
     " Find the windows associated with the buffers
     let left_win_id = get(win_findbuf(left_bufnr), 0, -1)
