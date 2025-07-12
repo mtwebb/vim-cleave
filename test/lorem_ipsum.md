@@ -1,16 +1,16 @@
 vim: colorcolumn=91 tw=79 virtualedit=all foldcolumn=5
                                                                                      
-Sapien eget mi proin sed. Scelerisque felis imperdiet proin fermentum leo.         
-Eget aliquet nibh praesent tristique magna sit. Interdum velit laoreet id donec      
-ultrices tincidunt arcu. Arcu dictum varius duis at consectetur. Etiam sit amet      
-nisl purus in mollis. Iaculis nunc sed augue lacus. Tristique magna sit amet              In metus vulputate eu scelerisque felis        
-purus gravida quis blandit turpis cursus.  Tincidunt dui ut ornare lectus sit             imperdiet proin fermentum leo. At lectus       
-amet est.  Dolor purus non enim praesent elementum facilisis leo vel fringilla.           urna duis convallis convallis tellus id.       
-Natoque penatibus et magnis dis parturient. Mollis aliquam ut porttitor leo.              Turpis egestas maecenas pharetra convallis     
-Ultrices mi tempus imperdiet nulla malesuada. In ornare quam viverra orci                 posuere morbi. Nunc mattis enim ut tellus      
-sagittis eu. Nunc eget lorem dolor sed viverra ipsum nunc aliquet bibendum.               elementum sagittis vitae et. Eu consequat      
-Cras sed felis eget velit aliquet sagittis id consectetur purus. Convallis                ac felis donec et. Libero nunc consequat       
-convallis tellus id interdum velit laoreet id donec ultrices. Duis at                     interdum varius sit amet mattis vulputate.     
+Sapien eget mi proin sed. Scelerisque felis imperdiet proin fermentum leo.                In metus vulputate eu scelerisque felis    
+Eget aliquet nibh praesent tristique magna sit. Interdum velit laoreet id donec           imperdiet proin fermentum leo. At lectus   
+ultrices tincidunt arcu. Arcu dictum varius duis at consectetur. Etiam sit amet           urna duis convallis convallis tellus id.   
+nisl purus in mollis. Iaculis nunc sed augue lacus. Tristique magna sit amet              Turpis egestas maecenas pharetra convallis     
+purus gravida quis blandit turpis cursus.  Tincidunt dui ut ornare lectus sit             posuere morbi. Nunc mattis enim ut tellus      
+amet est.  Dolor purus non enim praesent elementum facilisis leo vel fringilla.           elementum sagittis vitae et. Eu consequat      
+Natoque penatibus et magnis dis parturient. Mollis aliquam ut porttitor leo.              ac felis donec et. Libero nunc consequat       
+Ultrices mi tempus imperdiet nulla malesuada. In ornare quam viverra orci                 interdum varius sit amet mattis vulputate.     
+sagittis eu. Nunc eget lorem dolor sed viverra ipsum nunc aliquet bibendum.                   
+Cras sed felis eget velit aliquet sagittis id consectetur purus. Convallis                    
+convallis tellus id interdum velit laoreet id donec ultrices. Duis at                         
 consectetur lorem donec.  Consectetur adipiscing elit ut aliquam purus.                                                                  
                                                                                                                                          
                                                                                                                                          
@@ -100,11 +100,11 @@ vitae. Ante in nibh mauris cursus.  Elit scelerisque mauris pellentesque
 pulvinar pellentesque.  Sollicitudin aliquam ultrices sagittis orci a
 scelerisque purus semper eget.
 
-Tempus urna et pharetra pharetra massa massa. Integer malesuada nunc vel risus
+Tempus urna et pharetra pharetra massa massa. Integer malesuada nunc vel risus            Turpis egestas pretium.
 commodo viverra.  Ac odio tempor orci dapibus ultrices in iaculis. Posuere
 morbi leo urna molestie at elementum eu facilisis sed. Ut sem nulla pharetra
 diam sit amet nisl. Sit amet nisl purus in mollis. Orci phasellus egestas
-tellus rutrum tellus pellentesque eu. Enim blandit volutpat maecenas volutpat             Turpis egestas pretium.
+tellus rutrum tellus pellentesque eu. Enim blandit volutpat maecenas volutpat             
 blandit. Odio ut sem nulla pharetra diam sit amet nisl. Tempor orci dapibus
 ultrices in iaculis nunc sed augue.
 
