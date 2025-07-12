@@ -6,49 +6,139 @@ CONTENTS                                     *cleave-contents*
   1. Introduction...................|cleave-introduction|
   2. Commands.......................|cleave-commands|
   3. Options........................|cleave-options|
+  4. Examples.......................|cleave-examples|
+  5. Requirements...................|cleave-requirements|
 
 ==============================================================================
 INTRODUCTION                                 *cleave-introduction*
 
 Vim-cleave is a plugin that splits a buffer's content vertically at a
 specified column, creating separate left and right buffers while maintaining
-spatial positioning. This is useful for editing files with distinct left and
-right sides, such as diffs or files with line numbers.
+spatial positioning. This is particularly useful for editing files with
+distinct left and right content, such as diffs, documentation with
+annotations, or formatted text.
+
+Key features:
+- Buffer splitting at any column position
+- Text reflow with paragraph alignment preservation
+- Optional real-time synchronization between buffers
+- Spatial preservation of cursor position and scrolling
+- Intelligent paragraph boundary detection
 
 ==============================================================================
 COMMANDS                                     *cleave-commands*
 
 *:Cleave*
-    Splits the current buffer at the cursor position. The width of the new
-    left window will be set to the cursor column.
+    Splits the current buffer at the cursor position. Creates two new buffers:
+    - Left buffer: content from start of each line to cursor column
+    - Right buffer: content from cursor column to end of each line
+    
+    The width of the new left window will be set to the cursor column.
+    Both windows will have scroll binding enabled for synchronized scrolling.
 
 *:CleaveAt {column}*
     Splits the current buffer at the specified {column}. The width of the
     new left window will be set to {column}.
+    
+    Example: >
+        :CleaveAt 80
+<
+    This splits the buffer at column 80, useful for working with text that
+    has a specific line length or format.
 
 *:CleaveUndo*
-    Restores the original buffer and closes the cleaved windows.
+    Restores the original buffer and closes the cleaved windows. This command
+    discards any changes made to the split buffers and returns to the
+    original buffer state.
 
 *:CleaveJoin*
     Merges the left and right buffers back into the original buffer,
-    maintaining proper alignment and spacing between the content.
+    maintaining proper alignment and spacing between the content. Changes
+    made to either buffer are preserved in the merged result.
+    
+    The plugin calculates the necessary padding to maintain proper column
+    alignment when joining the content.
 
-*:CleaveReflow {width}*
+*:CleaveReflow {width}*                      *cleave-reflow*
     Reflows the text in the current buffer (left or right) to the specified
-    {width}. The plugin automatically detects which cleaved buffer has focus.
-    Paragraph alignment is preserved between buffers - the first line of each
-    paragraph in the right buffer stays aligned with the corresponding line
-    in the left buffer. Window sizing is updated automatically when reflowing
-    the left buffer.
+    {width}. This command provides intelligent text wrapping while preserving
+    the relationship between left and right content.
+
+    Key features:
+    - Automatically detects which cleaved buffer has focus
+    - Preserves paragraph alignment between left and right buffers
+    - Maintains correspondence of paragraph positions across buffers
+    - Updates window sizing automatically when reflowing the left buffer
+    - Uses content-based matching to track paragraph positions
+    - Removes trailing whitespace during processing
+    
+    The algorithm works by:
+    1. Identifying paragraph boundaries in both buffers
+    2. Storing the first word of each paragraph for tracking
+    3. Reflowing the text in the current buffer
+    4. Finding new paragraph positions by matching first words
+    5. Realigning the other buffer to maintain correspondence
 
     Minimum width: 10 characters
+    
+    Example: >
+        :CleaveReflow 60
+<
+    This reflows the current buffer to 60 characters width while maintaining
+    alignment with the corresponding buffer.
 
 ==============================================================================
 OPTIONS                                      *cleave-options*
 
 *g:cleave_auto_sync*
     When set to `v:true`, changes in one of the cleaved buffers will be
-    reflected in the other. This is useful for keeping the buffers in sync
-    while editing.
+    reflected in the other in real-time. This is useful for keeping the
+    buffers synchronized while editing.
 
     Default: `v:false`
+    
+    Example: >
+        let g:cleave_auto_sync = v:true
+<
+
+==============================================================================
+EXAMPLES                                     *cleave-examples*
+
+Basic workflow: >
+    " Open a file with content to split
+    :edit myfile.txt
+    
+    " Position cursor at column 40 and split
+    40|
+    :Cleave
+    
+    " Or split at a specific column
+    :CleaveAt 80
+    
+    " Reflow the left buffer to 60 characters
+    :CleaveReflow 60
+    
+    " Join the buffers back together
+    :CleaveJoin
+    
+    " Or restore original buffer
+    :CleaveUndo
+<
+
+Use cases:
+- Documentation editing with side comments
+- Code review with annotations
+- Working with diff files
+- Editing fixed-width data formats
+- Formatting text with specific layouts
+
+==============================================================================
+REQUIREMENTS                                 *cleave-requirements*
+
+- Vim 8.0 or higher
+- Text properties support (for advanced paragraph alignment features)
+  Text properties are available in Vim 8.1+ and provide enhanced paragraph
+  tracking during reflow operations.
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:
