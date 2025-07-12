@@ -15,6 +15,16 @@
 - `:Cleave` - Split buffer at cursor position
 - `:CleaveAt <column>` - Split buffer at specified column
 - `:CleaveUndo` - Restore original buffer and close cleaved windows
+- `:CleaveReflow <width>` - Reflow text in current buffer to specified width while maintaining paragraph alignment
+
+## CleaveReflow Implementation
+- **Text Properties**: Uses `prop_type_add()` and `prop_add()` to mark paragraph positions in left buffer with 'cleave_para_marker' type
+- **Paragraph Tracking**: Always tracks RIGHT buffer paragraph positions regardless of cursor location
+- **Alignment Strategy**: Saves line numbers of paragraph first lines, then restores them after reflow by adding/removing empty lines
+- **Key Functions**:
+  - `cleave#reflow_buffer()` - Main reflow logic with 4-step process
+  - `cleave#restore_paragraph_alignment()` - Restores right buffer paragraph positions
+  - `cleave#reflow_text()` - Core text wrapping functionality
 
 ## Code Style
 - **VimScript**: 4-space indentation, function names use `namespace#function_name` pattern

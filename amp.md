@@ -35,4 +35,38 @@ Status: Fully functional with all core features implemented
    * Silent buffer creation to suppress messages
    * Foldcolumn inheritance and window sizing
 
+Thread: https://ampcode.com/threads/T-b7e0087f-0b09-4436-aff3-81f6c132c250
+Continue this thread with: 'amp threads continue T-b7e0087f-0b09-4436-aff3-81f6c132c250'
+
+## Vim-Cleave Reflow Feature Implementation
+
+✅ Completed Implementation:
+
+Added :CleaveReflow <width> command that reflows text in current cleaved buffer while preserving paragraph alignment between left/right buffers.
+
+Key Features:
+
+   * Auto-detects current buffer (.left or .right)
+   * Reflows text to specified width with proper word wrapping
+   * Maintains paragraph alignment using position mapping
+   * Updates window sizing for left buffer reflows
+   * Handles edge cases (minimum width, empty paragraphs)
+
+Files Modified:
+
+   * plugin/cleave.vim - Added CleaveReflow command
+   * autoload/cleave.vim - Core reflow functions
+   * doc/cleave.txt - Updated documentation
+   * test/test_reflow.vim - Test suite
+
+Core Algorithm:
+
+   1. Map paragraphs between buffers before reflow
+   2. Reflow current buffer text to new width
+   3. Find new paragraph positions after reflow
+   4. Realign other buffer paragraphs to maintain correspondence
+
+Usage: Position cursor in left or right buffer, run :CleaveReflow 20 to reflow to 20 characters width.
+
+Feature is complete and functional with proper paragraph alignment preservation.
 
