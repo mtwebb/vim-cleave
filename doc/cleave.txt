@@ -29,6 +29,20 @@ COMMANDS                                     *cleave-commands*
 *:CleaveUndo*
     Restores the original buffer and closes the cleaved windows.
 
+*:CleaveJoin*
+    Merges the left and right buffers back into the original buffer,
+    maintaining proper alignment and spacing between the content.
+
+*:CleaveReflow {width}*
+    Reflows the text in the current buffer (left or right) to the specified
+    {width}. The plugin automatically detects which cleaved buffer has focus.
+    Paragraph alignment is preserved between buffers - the first line of each
+    paragraph in the right buffer stays aligned with the corresponding line
+    in the left buffer. Window sizing is updated automatically when reflowing
+    the left buffer.
+
+    Minimum width: 10 characters
+
 ==============================================================================
 OPTIONS                                      *cleave-options*
 

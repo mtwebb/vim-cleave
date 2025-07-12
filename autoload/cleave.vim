@@ -283,6 +283,228 @@ function! cleave#join_buffers()
     echomsg "Cleave: Buffers joined successfully."
 endfunction
 
+function! cleave#reflow_buffer(new_width)
+    " Detect if current buffer is a cleave buffer and which side
+    let current_bufnr = bufnr('%')
+    let original_bufnr = getbufvar(current_bufnr, 'cleave_original', -1)
+    let current_side = getbufvar(current_bufnr, 'cleave_side', '')
+    let cleave_col = getbufvar(current_bufnr, 'cleave_col', -1)
+    
+    if original_bufnr == -1 || empty(current_side)
+        echoerr "Cleave: Current buffer is not a cleave buffer (.left or .right)"
+        return
+    endif
+    
+    if a:new_width < 10
+        echoerr "Cleave: Width must be at least 10 characters"
+        return
+    endif
+    
+    " Find the other buffer
+    let other_side = (current_side == 'left') ? 'right' : 'left'
+    let other_bufnr = -1
+    for i in range(1, bufnr("$"))
+        if bufexists(i) && getbufvar(i, 'cleave_original', -1) == original_bufnr
+            if getbufvar(i, 'cleave_side', '') == other_side
+                let other_bufnr = i
+                break
+            endif
+        endif
+    endfor
+    
+    if other_bufnr == -1
+        echoerr "Cleave: Could not find companion buffer"
+        return
+    endif
+    
+    " Get current content and mark paragraph positions
+    let current_lines = getline(1, '$')
+    let other_lines = getbufline(other_bufnr, 1, '$')
+    
+    " Mark paragraph start positions using text properties
+    call cleave#mark_paragraphs(current_lines, other_lines)
+    
+    " Reflow current buffer to new width
+    let reflowed_lines = cleave#reflow_text(current_lines, a:new_width)
+    
+    " Update current buffer content
+    call setline(1, reflowed_lines)
+    if line('$') > len(reflowed_lines)
+        execute (len(reflowed_lines) + 1) . ',$delete'
+    endif
+    
+    " Adjust other buffer to maintain paragraph alignment
+    call cleave#adjust_other_buffer(other_bufnr, reflowed_lines, other_lines)
+    
+    " Update window sizing
+    if current_side == 'left'
+        let new_cleave_col = a:new_width + 1
+        call setbufvar(current_bufnr, 'cleave_col', new_cleave_col)
+        call setbufvar(other_bufnr, 'cleave_col', new_cleave_col)
+        
+        " Resize left window
+        let original_foldcolumn = getbufvar(current_bufnr, 'cleave_foldcolumn', 0)
+        execute 'vertical resize ' . (a:new_width + original_foldcolumn)
+    endif
+    
+    echomsg "Cleave: Reflowed " . current_side . " buffer to width " . a:new_width
+endfunction
+
+function! cleave#mark_paragraphs(current_lines, other_lines)
+    " Clear existing properties
+    if has('textprop')
+        try
+            call prop_remove({'type': 'cleave_paragraph', 'all': v:true})
+        catch
+            " Property type may not exist yet
+        endtry
+        
+        " Define property type if not exists
+        try
+            call prop_type_add('cleave_paragraph', {'highlight': 'none'})
+        catch
+            " Type already exists
+        endtry
+        
+        " Mark paragraph starts in current buffer
+        for i in range(len(a:current_lines))
+            let line = a:current_lines[i]
+            let is_paragraph_start = v:false
+            
+            if i == 0
+                " First line is always a paragraph start
+                let is_paragraph_start = v:true
+            elseif i > 0 && trim(a:current_lines[i-1]) == '' && trim(line) != ''
+                " Line after empty line that's not empty
+                let is_paragraph_start = v:true
+            endif
+            
+            if is_paragraph_start
+                try
+                    call prop_add(i + 1, 1, {'type': 'cleave_paragraph', 'length': 1})
+                catch
+                    " Ignore errors from invalid positions
+                endtry
+            endif
+        endfor
+    endif
+endfunction
+
+function! cleave#reflow_text(lines, width)
+    let reflowed = []
+    let current_paragraph = []
+    
+    for line in a:lines
+        let trimmed = trim(line)
+        
+        if empty(trimmed)
+            " Empty line - end current paragraph
+            if !empty(current_paragraph)
+                call extend(reflowed, cleave#wrap_paragraph(current_paragraph, a:width))
+                let current_paragraph = []
+            endif
+            call add(reflowed, '')
+        else
+            " Add to current paragraph
+            call add(current_paragraph, trimmed)
+        endif
+    endfor
+    
+    " Handle final paragraph
+    if !empty(current_paragraph)
+        call extend(reflowed, cleave#wrap_paragraph(current_paragraph, a:width))
+    endif
+    
+    return reflowed
+endfunction
+
+function! cleave#wrap_paragraph(paragraph_lines, width)
+    " Join paragraph into single string
+    let text = join(a:paragraph_lines, ' ')
+    let words = split(text, '\s\+')
+    let wrapped = []
+    let current_line = ''
+    
+    for word in words
+        let test_line = empty(current_line) ? word : current_line . ' ' . word
+        
+        if len(test_line) <= a:width
+            let current_line = test_line
+        else
+            if !empty(current_line)
+                call add(wrapped, current_line)
+                let current_line = word
+            else
+                " Single word longer than width - force it
+                call add(wrapped, word)
+                let current_line = ''
+            endif
+        endif
+    endfor
+    
+    if !empty(current_line)
+        call add(wrapped, current_line)
+    endif
+    
+    return !empty(wrapped) ? wrapped : ['']
+endfunction
+
+function! cleave#adjust_other_buffer(other_bufnr, reflowed_lines, original_other_lines)
+    " Get paragraph positions from properties
+    let paragraph_positions = []
+    if has('textprop')
+        try
+            let props = prop_list(1, {'end_lnum': line('$'), 'types': ['cleave_paragraph']})
+            for prop in props
+                call add(paragraph_positions, prop.lnum - 1)
+            endfor
+        catch
+            " Fallback to simple detection
+        endtry
+    endif
+    
+    " If no properties, detect paragraphs manually
+    if empty(paragraph_positions)
+        for i in range(len(a:reflowed_lines))
+            let line = a:reflowed_lines[i]
+            if i == 0 || (i > 0 && trim(a:reflowed_lines[i-1]) == '' && trim(line) != '')
+                call add(paragraph_positions, i)
+            endif
+        endfor
+    endif
+    
+    " Rebuild other buffer with padding to align paragraphs
+    let adjusted_lines = []
+    let other_para_idx = 0
+    let reflowed_para_idx = 0
+    
+    for i in range(len(a:reflowed_lines))
+        if index(paragraph_positions, i) >= 0
+            " This is a paragraph start - make sure other buffer aligns
+            while other_para_idx < len(a:original_other_lines) && 
+                  \ (other_para_idx >= len(adjusted_lines) || len(adjusted_lines) < i)
+                call add(adjusted_lines, other_para_idx < len(a:original_other_lines) ? 
+                       \ a:original_other_lines[other_para_idx] : '')
+                let other_para_idx += 1
+            endwhile
+            let reflowed_para_idx += 1
+        endif
+        
+        " Ensure other buffer has enough lines
+        while len(adjusted_lines) <= i
+            call add(adjusted_lines, other_para_idx < len(a:original_other_lines) ? 
+                   \ a:original_other_lines[other_para_idx] : '')
+            let other_para_idx += 1
+        endwhile
+    endfor
+    
+    " Update other buffer
+    call setbufline(a:other_bufnr, 1, adjusted_lines)
+    if getbufinfo(a:other_bufnr)[0].linecount > len(adjusted_lines)
+        call deletebufline(a:other_bufnr, len(adjusted_lines) + 1, '$')
+    endif
+endfunction
+
 augroup cleave_sync
     autocmd!
     autocmd TextChanged,TextChangedI * call cleave#sync_buffers()
