@@ -1,7 +1,7 @@
-[ ] Add new function to reflow the text in left or right buffer to a new width
-IMPORTANT:  The first line in each paragraph of the right buffer should
-stay aligned with the same line in the left buffer if possible. 
-The window size should be updated as well to keep the layout when resizing the .left buffer
-Consider text properties for marking locations to align. 
-reflow the text in whichever buffer the cursor is in (.left or .right) 
-    
+# add 5 global variables for tracking layout in the cleave plugin. 
+    margin_left:  The blank space to the left of the text. Usually achieved by setting foldcolumn to those settings
+    margin_right: Blank space to the right of the text. Used to setlocal wrapmargin on the merged doc 
+    gutter:  space between the main_text and sidenotes. Will impact setlocal wrapmargin on LEFT buffer
+    width_text:  width in columns setlocal textwidth of the LEFT buffer
+    width_note:  width in columns setlocal textwidth of the RIGHT buffer 
+     

@@ -1,4 +1,4 @@
-vim: colorcolumn=91 tw=79 virtualedit=all foldcolumn=5 wrapmargin=5
+vim: cc=91 tw=79 ve=all fdc=5 wm=3
                                                                                      
 Sapien eget mi proin sed. Scelerisque felis imperdiet proin fermentum leo.                In metus vulputate eu scelerisque felis    
 Eget aliquet nibh praesent tristique magna sit. Interdum velit laoreet id donec           imperdiet proin fermentum leo. At lectus   
