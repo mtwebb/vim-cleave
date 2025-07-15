@@ -38,7 +38,7 @@ Plugin 'mtwebb/vim-cleave'
 
 1. Open a file with content you want to split
 2. Position cursor at desired split column
-3. Run `:Cleave` to create left and right buffers
+3. Run `:CleaveAtCursor` to create left and right buffers
 4. Edit either buffer independently
 5. Use `:CleaveReflow <width>` to reflow text while preserving alignment
 6. Use `:CleaveJoin` to merge back to original format
@@ -46,17 +46,17 @@ Plugin 'mtwebb/vim-cleave'
 
 ### Commands
 
-#### `:Cleave`
+#### `:CleaveAtCursor`
 Splits the current buffer at the cursor position. Creates two new buffers:
 - Left buffer: content from start of each line to cursor column
 - Right buffer: content from cursor column to end of each line
 
-#### `:CleaveAt <column>`
+#### `:CleaveAtColumn <column>`
 Splits the current buffer at the specified column number.
 
 **Example:**
 ```vim
-:CleaveAt 80
+:CleaveAtColumn 80
 ```
 
 #### `:CleaveUndo`

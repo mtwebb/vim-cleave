@@ -28,7 +28,7 @@ Key features:
 ==============================================================================
 COMMANDS                                     *cleave-commands*
 
-*:Cleave*
+*:CleaveAtCursor*
     Splits the current buffer at the cursor position. Creates two new buffers:
     - Left buffer: content from start of each line to cursor column
     - Right buffer: content from cursor column to end of each line
@@ -36,12 +36,12 @@ COMMANDS                                     *cleave-commands*
     The width of the new left window will be set to the cursor column.
     Both windows will have scroll binding enabled for synchronized scrolling.
 
-*:CleaveAt {column}*
+*:CleaveAtColumn {column}*
     Splits the current buffer at the specified {column}. The width of the
     new left window will be set to {column}.
     
     Example: >
-        :CleaveAt 80
+        :CleaveAtColumn 80
 <
     This splits the buffer at column 80, useful for working with text that
     has a specific line length or format.
@@ -110,10 +110,10 @@ Basic workflow: >
     
     " Position cursor at column 40 and split
     40|
-    :Cleave
+    :CleaveAtCursor
     
     " Or split at a specific column
-    :CleaveAt 80
+    :CleaveAtColumn 80
     
     " Reflow the left buffer to 60 characters
     :CleaveReflow 60

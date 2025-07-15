@@ -12,8 +12,8 @@
 - Plugin follows standard Vim plugin structure with autoload pattern for lazy loading
 
 ## Commands
-- `:Cleave` - Split buffer at cursor position
-- `:CleaveAt <column>` - Split buffer at specified column
+- `:CleaveAtCursor` - Split buffer at cursor position
+- `:CleaveAtColumn <column>` - Split buffer at specified column
 - `:CleaveUndo` - Restore original buffer and close cleaved windows
 - `:CleaveReflow <width>` - Reflow text in current buffer to specified width while maintaining paragraph alignment
 
