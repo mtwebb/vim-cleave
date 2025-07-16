@@ -1,5 +1,10 @@
 " cleave.vim - autoload script for cleave plugin
 
+" Global variable for gutter width
+if !exists('g:cleave_gutter')
+    let g:cleave_gutter = 3
+endif
+
 function! cleave#split_buffer(bufnr, ...)
     " 1. Determine Cleave Column
     let cleave_col = 0
@@ -440,7 +445,7 @@ function! cleave#reflow_buffer(new_width)
         " Resize left window
         let left_winid = get(win_findbuf(current_bufnr), 0, -1)
         let original_foldcolumn = left_winid != -1 ? getwinvar(left_winid, '&foldcolumn') : 0
-        execute 'vertical resize ' . (a:new_width + original_foldcolumn)
+        execute 'vertical resize ' . (a:new_width + original_foldcolumn + g:cleave_gutter)
     endif
     
     echomsg "Cleave: Reflowed " . current_side . " buffer to width " . a:new_width
