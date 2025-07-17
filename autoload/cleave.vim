@@ -324,8 +324,119 @@ function! cleave#reflow_buffer(new_width)
         return
     endif
     
+    " Handle right buffer reflow with dedicated logic
+    if current_side == 'right'
+        call cleave#reflow_right_buffer(a:new_width, current_bufnr, left_bufnr, right_bufnr)
+        return
+    endif
+    
+    " Handle left buffer reflow with dedicated logic
+    call cleave#reflow_left_buffer(a:new_width, current_bufnr, left_bufnr, right_bufnr)
+endfunction
+
+function! cleave#reflow_right_buffer(new_width, current_bufnr, left_bufnr, right_bufnr)
+    " Dedicated right buffer reflow logic
+    " Step 1: Note line positions of first line in each paragraph in RIGHT buffer
+    let current_lines = getline(1, '$')
+    let para_positions = []
+    let paragraphs = []
+    
+    " Find paragraph start positions and extract paragraph content
+    let current_para_lines = []
+    let current_para_start = -1
+    
+    for i in range(len(current_lines))
+        let line = current_lines[i]
+        let trimmed_line = trim(line)
+        let is_paragraph_start = v:false
+        
+        if i == 0 && trimmed_line != ''
+            let is_paragraph_start = v:true
+        elseif i > 0 && trim(current_lines[i-1]) == '' && trimmed_line != ''
+            let is_paragraph_start = v:true
+        endif
+        
+        if is_paragraph_start
+            " Save previous paragraph if we have one
+            if current_para_start >= 0 && !empty(current_para_lines)
+                call add(para_positions, current_para_start + 1)  " Convert to 1-based
+                call add(paragraphs, copy(current_para_lines))
+            endif
+            
+            " Start new paragraph
+            let current_para_lines = [trimmed_line]
+            let current_para_start = i
+        elseif current_para_start >= 0 && trimmed_line != ''
+            " Continue current paragraph - only add non-empty lines
+            call add(current_para_lines, trimmed_line)
+        endif
+    endfor
+    
+    " Save final paragraph
+    if current_para_start >= 0 && !empty(current_para_lines)
+        call add(para_positions, current_para_start + 1)  " Convert to 1-based
+        call add(paragraphs, copy(current_para_lines))
+    endif
+    
+    " Step 2: Reflow each paragraph individually to new width
+    let reflowed_paragraphs = []
+    for para_lines in paragraphs
+        let reflowed_para = cleave#wrap_paragraph(para_lines, a:new_width)
+        call add(reflowed_paragraphs, reflowed_para)
+    endfor
+    
+    " Step 3: Reconstruct buffer with paragraphs at their original positions
+    let new_buffer_lines = []
+    let current_line_num = 1
+    
+    for i in range(len(para_positions))
+        let target_line = para_positions[i]
+        let reflowed_para = reflowed_paragraphs[i]
+        
+        " Add empty lines until we reach the target position
+        while current_line_num < target_line
+            call add(new_buffer_lines, '')
+            let current_line_num += 1
+        endwhile
+        
+        " Add the reflowed paragraph
+        for para_line in reflowed_para
+            call add(new_buffer_lines, para_line)
+            let current_line_num += 1
+        endfor
+        
+        " Ensure at least one blank line after paragraph (except for last paragraph)
+        if i < len(para_positions) - 1
+            let next_target = para_positions[i + 1]
+            if current_line_num >= next_target
+                " Need to slide next paragraph down to maintain spacing
+                let slide_amount = current_line_num - next_target + 2  " +2 for blank line
+                for j in range(i + 1, len(para_positions) - 1)
+                    let para_positions[j] += slide_amount
+                endfor
+            endif
+            " Add blank line after paragraph
+            call add(new_buffer_lines, '')
+            let current_line_num += 1
+        endif
+    endfor
+    
+    " Step 4: Update the right buffer
+    call setline(1, new_buffer_lines)
+    if line('$') > len(new_buffer_lines)
+        execute (len(new_buffer_lines) + 1) . ',$delete'
+    endif
+    
+    " Set textwidth for the reflowed buffer
+    execute 'setlocal textwidth=' . a:new_width
+    
+    echomsg "Cleave: Reflowed right buffer to width " . a:new_width
+endfunction
+
+function! cleave#reflow_left_buffer(new_width, current_bufnr, left_bufnr, right_bufnr)
+    " Dedicated left buffer reflow logic (original working implementation)
     " Step 1: Note line numbers of first line in each paragraph in RIGHT buffer
-    let right_lines = getbufline(right_bufnr, 1, '$')
+    let right_lines = getbufline(a:right_bufnr, 1, '$')
     let right_para_line_numbers = []
     
     "echomsg "CleaveReflow DEBUG: Right buffer has " . len(right_lines) . " lines"
@@ -352,7 +463,7 @@ function! cleave#reflow_buffer(new_width)
     
     " Step 2: Store paragraph first words for matching after reflow
     let para_first_words = []
-    let left_lines = getbufline(left_bufnr, 1, '$')
+    let left_lines = getbufline(a:left_bufnr, 1, '$')
     "echomsg "CleaveReflow DEBUG: Left buffer has " . len(left_lines) . " lines"
     for line_num in right_para_line_numbers
         if line_num <= len(left_lines)
@@ -434,21 +545,22 @@ function! cleave#reflow_buffer(new_width)
     
     " Step 4: Adjust RIGHT buffer so each first line is back on updated line numbers
     echomsg "CleaveReflow DEBUG: Calling restore_paragraph_alignment with updated line numbers: " . string(updated_para_line_numbers)
-    call cleave#restore_paragraph_alignment(right_bufnr, right_lines, updated_para_line_numbers)
+    call cleave#restore_paragraph_alignment(a:right_bufnr, right_lines, updated_para_line_numbers)
     
-    " Update window sizing if we reflowed the left buffer
-    if current_side == 'left'
-        let new_cleave_col = a:new_width + 1
-        call setbufvar(current_bufnr, 'cleave_col', new_cleave_col)
-        call setbufvar(right_bufnr, 'cleave_col', new_cleave_col)
-        
-        " Resize left window
-        let left_winid = get(win_findbuf(current_bufnr), 0, -1)
-        let original_foldcolumn = left_winid != -1 ? getwinvar(left_winid, '&foldcolumn') : 0
-        execute 'vertical resize ' . (a:new_width + original_foldcolumn + g:cleave_gutter)
-    endif
+    " Update window sizing for left buffer reflow
+    let new_cleave_col = a:new_width + 1
+    call setbufvar(a:current_bufnr, 'cleave_col', new_cleave_col)
+    call setbufvar(a:right_bufnr, 'cleave_col', new_cleave_col)
     
-    echomsg "Cleave: Reflowed " . current_side . " buffer to width " . a:new_width
+    " Resize left window
+    let left_winid = get(win_findbuf(a:current_bufnr), 0, -1)
+    let original_foldcolumn = left_winid != -1 ? getwinvar(left_winid, '&foldcolumn') : 0
+    execute 'vertical resize ' . (a:new_width + original_foldcolumn + g:cleave_gutter)
+    
+    " Set textwidth for the reflowed buffer
+    execute 'setlocal textwidth=' . a:new_width
+    
+    echomsg "Cleave: Reflowed left buffer to width " . a:new_width
 endfunction
 
 function! cleave#create_paragraph_mapping(current_para_positions, other_para_positions)
