@@ -227,6 +227,19 @@ function! cleave#join_buffers()
     let left_lines = getbufline(left_bufnr, 1, '$')
     let right_lines = getbufline(right_bufnr, 1, '$')
 
+    " Calculate cleave_column as textwidth of LEFT buffer + g:cleave_gutter + 1
+    let left_textwidth = getbufvar(left_bufnr, '&textwidth', 0)
+    if left_textwidth == 0
+        " If textwidth is not set, try to get it from the window
+        let left_winid = get(win_findbuf(left_bufnr), 0, -1)
+        if left_winid != -1
+            let left_textwidth = getwinvar(left_winid, '&textwidth', 80)
+        else
+            let left_textwidth = 80  " Default fallback
+        endif
+    endif
+    let cleave_column = left_textwidth + g:cleave_gutter + 1
+
     " Combine the content
     let combined_lines = []
     let max_lines = max([len(left_lines), len(right_lines)])
@@ -235,9 +248,9 @@ function! cleave#join_buffers()
         let left_line = (i < len(left_lines)) ? left_lines[i] : ''
         let right_line = (i < len(right_lines)) ? right_lines[i] : ''
         
-        " Calculate padding needed to reach cleave_col
+        " Calculate padding needed to reach cleave_column
         let left_len = len(left_line)
-        let padding_needed = cleave_col - 1 - left_len
+        let padding_needed = cleave_column - 1 - left_len
         let padding = padding_needed > 0 ? repeat(' ', padding_needed) : ''
         
         let combined_line = left_line . padding . right_line
@@ -255,6 +268,9 @@ function! cleave#join_buffers()
     " First clear the buffer, then set new content
     call deletebufline(original_bufnr, 1, '$')
     call setbufline(original_bufnr, 1, combined_lines)
+
+    " Set textwidth of joined buffer to match LEFT buffer's textwidth
+    call setbufvar(original_bufnr, '&textwidth', left_textwidth)
 
     " Find the windows associated with the buffers
     let left_win_id = get(win_findbuf(left_bufnr), 0, -1)
