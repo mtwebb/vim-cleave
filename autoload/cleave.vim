@@ -152,48 +152,7 @@ function! cleave#undo_cleave()
     endif
 endfunction
 
-function! cleave#sync_buffers()
-    if !g:cleave_auto_sync
-        return
-    endif
 
-    let current_bufnr = bufnr('%')
-    let original_bufnr = getbufvar(current_bufnr, 'cleave_original', -1)
-    if original_bufnr == -1
-        return
-    endif
-
-    let side = getbufvar(current_bufnr, 'cleave_side', '')
-    let other_side = (side == 'left') ? 'right' : 'left' 
-
-    " Find the other buffer
-    let buflist = getbufinfo({'buflisted': 1})
-    let other_bufnr = -1
-    for buf in buflist
-        if getbufvar(buf.bufnr, 'cleave_original', -1) == original_bufnr && getbufvar(buf.bufnr, 'cleave_side', '') == other_side
-            let other_bufnr = buf.bufnr
-            break
-        endif
-    endfor
-
-    if other_bufnr == -1
-        return
-    endif
-
-    " Combine the lines from both buffers
-    let left_lines = (side == 'left') ? getline(1, '$') : getbufline(other_bufnr, 1, '$')
-    let right_lines = (side == 'right') ? getline(1, '$') : getbufline(other_bufnr, 1, '$')
-
-    let combined_lines = []
-    for i in range(len(left_lines))
-        let right_line = (i < len(right_lines)) ? right_lines[i] : ''
-        call add(combined_lines, left_lines[i] . right_line)
-    endfor
-
-    " Update the original buffer
-    call setbufline(original_bufnr, 1, combined_lines)
-
-endfunction
 
 function! cleave#join_buffers()
     let current_bufnr = bufnr('%')
@@ -1021,8 +980,4 @@ function! cleave#realign_other_buffer(other_bufnr, other_lines, para_mapping, ne
     endif
 endfunction
 
-augroup cleave_sync
-    autocmd!
-    autocmd TextChanged,TextChangedI * call cleave#sync_buffers()
-    autocmd CursorMoved * if getbufvar(bufnr('%'), 'cleave_original', -1) != -1 | set scrollbind | endif
-augroup END
+

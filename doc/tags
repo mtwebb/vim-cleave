@@ -9,5 +9,4 @@ cleave-options	cleave.txt	/*cleave-options*
 cleave-reflow	cleave.txt	/*cleave-reflow*
 cleave-requirements	cleave.txt	/*cleave-requirements*
 cleave.txt	cleave.txt	/*cleave.txt*
-g:cleave_auto_sync	cleave.txt	/*g:cleave_auto_sync*
 g:cleave_gutter	cleave.txt	/*g:cleave_gutter*

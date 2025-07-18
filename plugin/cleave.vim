@@ -5,9 +5,7 @@ if exists('g:loaded_cleave')
 endif
 let g:loaded_cleave = 1
 
-if !exists('g:cleave_auto_sync')
-    let g:cleave_auto_sync = v:false
-endif
+
 
 command! -nargs=? CleaveAtCursor call cleave#split_buffer(bufnr('%'), <f-args>)
 command! -nargs=1 CleaveAtColumn call cleave#split_buffer(winbufnr(0), <args>)

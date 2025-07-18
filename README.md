@@ -6,7 +6,7 @@ Vim-cleave is a plugin that splits a buffer's content vertically at a specified 
 
 - **Buffer Splitting**: Split any buffer vertically at a specified column
 - **Text Reflow**: Reflow text in either buffer while maintaining paragraph alignment
-- **Automatic Synchronization**: Optional real-time sync between left and right buffers
+
 - **Spatial Preservation**: Maintains cursor position and scroll synchronization
 - **Paragraph Alignment**: Intelligently preserves paragraph boundaries during reflow
 
@@ -81,16 +81,6 @@ Reflows the text in the current buffer (left or right) to the specified width.
 ```
 
 ### Options
-
-#### `g:cleave_auto_sync`
-When set to `v:true`, changes in one of the cleaved buffers will be reflected in the other in real-time. This is useful for keeping the buffers synchronized while editing.
-
-**Default:** `v:false`
-
-**Example:**
-```vim
-let g:cleave_auto_sync = v:true
-```
 
 #### `g:cleave_gutter`
 Sets the number of spaces between the left and right content when joining buffers. This affects the spacing calculation during `:CleaveJoin` operations.
