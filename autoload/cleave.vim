@@ -401,40 +401,58 @@ function! cleave#reflow_right_buffer(new_width, current_bufnr, left_bufnr, right
         call add(reflowed_paragraphs, reflowed_para)
     endfor
     
-    " Step 3: Reconstruct buffer with paragraphs at their original positions
+    " Step 3: Reconstruct buffer preserving original positions when possible
     let new_buffer_lines = []
     let current_line_num = 1
+    let new_para_positions = []
     
     for i in range(len(para_positions))
         let target_line = para_positions[i]
         let reflowed_para = reflowed_paragraphs[i]
+        let para_length = len(reflowed_para)
         
-        " Add empty lines until we reach the target position
-        while current_line_num < target_line
-            call add(new_buffer_lines, '')
-            let current_line_num += 1
-        endwhile
+        " Check if we can fit this paragraph at its original position
+        let can_fit_at_original = v:true
+        
+        " Check if placing at original position would overlap with next paragraph
+        if i < len(para_positions) - 1
+            let next_target = para_positions[i + 1]
+            let para_end_at_original = target_line + para_length - 1
+            
+            " Need at least one blank line between paragraphs
+            if para_end_at_original >= next_target
+                let can_fit_at_original = v:false
+            endif
+        endif
+        
+        " Determine actual placement position
+        let actual_position = target_line
+        if current_line_num > target_line || !can_fit_at_original
+            " Can't fit at original position, place at current position with separation
+            let actual_position = current_line_num
+            
+            " Ensure at least one blank line separation from previous content
+            if current_line_num > 1 && len(new_buffer_lines) > 0 && new_buffer_lines[-1] != ''
+                call add(new_buffer_lines, '')
+                let current_line_num += 1
+                let actual_position = current_line_num
+            endif
+        else
+            " Can fit at original position, add empty lines to reach it
+            while current_line_num < target_line
+                call add(new_buffer_lines, '')
+                let current_line_num += 1
+            endwhile
+        endif
+        
+        " Record the actual position where this paragraph starts
+        call add(new_para_positions, actual_position)
         
         " Add the reflowed paragraph
         for para_line in reflowed_para
             call add(new_buffer_lines, para_line)
             let current_line_num += 1
         endfor
-        
-        " Ensure at least one blank line after paragraph (except for last paragraph)
-        if i < len(para_positions) - 1
-            let next_target = para_positions[i + 1]
-            if current_line_num >= next_target
-                " Need to slide next paragraph down to maintain spacing
-                let slide_amount = current_line_num - next_target + 2  " +2 for blank line
-                for j in range(i + 1, len(para_positions) - 1)
-                    let para_positions[j] += slide_amount
-                endfor
-            endif
-            " Add blank line after paragraph
-            call add(new_buffer_lines, '')
-            let current_line_num += 1
-        endif
     endfor
     
     " Step 4: Update the right buffer
@@ -449,9 +467,77 @@ function! cleave#reflow_right_buffer(new_width, current_bufnr, left_bufnr, right
     echomsg "Cleave: Reflowed right buffer to width " . a:new_width
 endfunction
 
+function! cleave#update_left_positions_after_right_reflow(left_bufnr, right_bufnr, old_para_positions, new_para_positions)
+    " Update left buffer paragraph positions to match new right buffer positions after reflow
+    " This ensures that corresponding paragraphs in left and right buffers stay aligned
+    
+    " Get the current left buffer content
+    let left_lines = getbufline(a:left_bufnr, 1, '$')
+    
+    " Store first words from left buffer at the old paragraph positions for matching
+    let para_first_words = []
+    for line_num in a:old_para_positions
+        if line_num <= len(left_lines)
+            let line_text = left_lines[line_num - 1]  " Convert to 0-based for array access
+            let first_word_match = matchstr(line_text, '\S\+')
+            call add(para_first_words, first_word_match)
+        else
+            call add(para_first_words, '')
+        endif
+    endfor
+    
+    " Find where each paragraph's first word appears in the left buffer
+    let updated_left_para_positions = []
+    let last_found_line = 0
+    
+    for i in range(len(para_first_words))
+        let target_word = para_first_words[i]
+        let new_right_pos = a:new_para_positions[i]
+        
+        if len(target_word) > 0
+            " Search for this first word in the left buffer
+            let found = v:false
+            for line_idx in range(last_found_line, len(left_lines))
+                let line = left_lines[line_idx]
+                let first_word_in_line = matchstr(line, '\S\+')
+                
+                if first_word_in_line == target_word
+                    " Check if this is a paragraph start
+                    let is_para_start = v:false
+                    if line_idx == 0 && trim(line) != ''
+                        let is_para_start = v:true
+                    elseif line_idx > 0 && trim(left_lines[line_idx-1]) == '' && trim(line) != ''
+                        let is_para_start = v:true
+                    endif
+                    
+                    if is_para_start
+                        call add(updated_left_para_positions, line_idx + 1)  " Convert to 1-based
+                        let last_found_line = line_idx + 1
+                        let found = v:true
+                        break
+                    endif
+                endif
+            endfor
+            
+            if !found
+                " If we can't find the word, use the new right position as fallback
+                call add(updated_left_para_positions, new_right_pos)
+            endif
+        else
+            " No first word, use the new right position
+            call add(updated_left_para_positions, new_right_pos)
+        endif
+    endfor
+    
+    " Realign left buffer paragraphs to match the new right buffer positions
+    if len(updated_left_para_positions) > 0
+        call cleave#restore_paragraph_alignment(a:left_bufnr, left_lines, a:new_para_positions)
+    endif
+endfunction
+
 function! cleave#reflow_left_buffer(new_width, current_bufnr, left_bufnr, right_bufnr)
     " Dedicated left buffer reflow logic (original working implementation)
-    " Step 1: Note line numbers of first line in each paragraph in RIGHT buffer
+    " Step 1: Find paragraph positions in RIGHT buffer
     let right_lines = getbufline(a:right_bufnr, 1, '$')
     let right_para_line_numbers = []
     
