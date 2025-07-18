@@ -536,8 +536,8 @@ function! cleave#update_left_positions_after_right_reflow(left_bufnr, right_bufn
 endfunction
 
 function! cleave#reflow_left_buffer(new_width, current_bufnr, left_bufnr, right_bufnr)
-    " Dedicated left buffer reflow logic (original working implementation)
-    " Step 1: Find paragraph positions in RIGHT buffer
+    " Dedicated left buffer reflow logic (updated to handle current right buffer state)
+    " Step 1: Find paragraph positions in RIGHT buffer (current state)
     let right_lines = getbufline(a:right_bufnr, 1, '$')
     let right_para_line_numbers = []
     
@@ -563,24 +563,57 @@ function! cleave#reflow_left_buffer(new_width, current_bufnr, left_bufnr, right_
     
     "echomsg "CleaveReflow DEBUG: Right buffer paragraph line numbers: " . string(right_para_line_numbers)
     
-    " Step 2: Store paragraph first words for matching after reflow
+    " Step 2: Store paragraph first words from LEFT buffer at corresponding positions
+    " This handles cases where new paragraphs may have been added to the right buffer
     let para_first_words = []
     let left_lines = getbufline(a:left_bufnr, 1, '$')
     "echomsg "CleaveReflow DEBUG: Left buffer has " . len(left_lines) . " lines"
+    
+    " For each paragraph position in the right buffer, try to find corresponding content in left buffer
     for line_num in right_para_line_numbers
+        let first_word = ''
+        
+        " Check if there's content at this line in the left buffer
         if line_num <= len(left_lines)
             let line_text = left_lines[line_num - 1]  " Convert to 0-based for array access
-            let first_word_match = matchstr(line_text, '\S\+')
+            let first_word_match = matchstr(trim(line_text), '\S\+')
             if len(first_word_match) > 0
-                call add(para_first_words, first_word_match)
-                "echomsg "CleaveReflow DEBUG: Stored first word for line " . line_num . ": '" . first_word_match . "'"
-            else
-                call add(para_first_words, '')
-                "echomsg "CleaveReflow DEBUG: No first word found for line " . line_num
+                let first_word = first_word_match
+                "echomsg "CleaveReflow DEBUG: Found first word at line " . line_num . ": '" . first_word . "'"
             endif
-        else
-            call add(para_first_words, '')
-            "echomsg "CleaveReflow DEBUG: Skipped line " . line_num . " (beyond left buffer length)"
+        endif
+        
+        " If no content at exact line, search nearby lines for paragraph content
+        if empty(first_word)
+            " Search within a small range around the target line
+            let search_start = max([1, line_num - 2])
+            let search_end = min([len(left_lines), line_num + 2])
+            
+            for search_line in range(search_start, search_end)
+                let line_text = left_lines[search_line - 1]
+                let trimmed_text = trim(line_text)
+                
+                " Check if this could be a paragraph start
+                let is_para_start = v:false
+                if search_line == 1 && !empty(trimmed_text)
+                    let is_para_start = v:true
+                elseif search_line > 1 && empty(trim(left_lines[search_line - 2])) && !empty(trimmed_text)
+                    let is_para_start = v:true
+                endif
+                
+                if is_para_start
+                    let first_word = matchstr(trimmed_text, '\S\+')
+                    if !empty(first_word)
+                        "echomsg "CleaveReflow DEBUG: Found nearby first word at line " . search_line . ": '" . first_word . "'"
+                        break
+                    endif
+                endif
+            endfor
+        endif
+        
+        call add(para_first_words, first_word)
+        if empty(first_word)
+            "echomsg "CleaveReflow DEBUG: No first word found for right buffer line " . line_num
         endif
     endfor
     
