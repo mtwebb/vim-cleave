@@ -980,4 +980,114 @@ function! cleave#realign_other_buffer(other_bufnr, other_lines, para_mapping, ne
     endif
 endfunction
 
+function! cleave#set_text_properties()
+    " Set text properties in the left buffer based on paragraph starts in the right buffer
+    let current_bufnr = bufnr('%')
+    let original_bufnr = getbufvar(current_bufnr, 'cleave_original', -1)
+    let current_side = getbufvar(current_bufnr, 'cleave_side', '')
+    
+    if original_bufnr == -1 || empty(current_side)
+        echoerr "Cleave: Current buffer is not a cleave buffer (.left or .right)"
+        return
+    endif
+    
+    " Find both left and right buffers
+    let left_bufnr = -1
+    let right_bufnr = -1
+    for i in range(1, bufnr("$"))
+        if bufexists(i) && getbufvar(i, 'cleave_original', -1) == original_bufnr
+            let side = getbufvar(i, 'cleave_side', '')
+            if side == 'left'
+                let left_bufnr = i
+            elseif side == 'right'
+                let right_bufnr = i
+            endif
+        endif
+    endfor
+    
+    if left_bufnr == -1 || right_bufnr == -1
+        echoerr "Cleave: Could not find both left and right buffers"
+        return
+    endif
+    
+    " Check if text properties are supported
+    if !has('textprop')
+        echomsg "Cleave: Text properties not supported in this Vim version"
+        return
+    endif
+    
+    " Define text property type for paragraph markers
+    let prop_type = 'cleave_paragraph_start'
+    try
+        "TODO: indicate the word note is anchored to
+        "underline perhaps? 
+        "call prop_type_add(prop_type, {'highlight': 'LineNr'})
+        call prop_type_add(prop_type, {})
+    catch /E969:/
+        " Property type already exists, that's fine
+    endtry
+    
+    " Clear existing text properties in left buffer
+    call prop_remove({'type': prop_type, 'bufnr': left_bufnr, 'all': 1})
+    
+    " Get content from both buffers
+    let right_lines = getbufline(right_bufnr, 1, '$')
+    let left_lines = getbufline(left_bufnr, 1, '$')
+    
+    " Find paragraph start positions in right buffer
+    let right_para_positions = []
+    for i in range(len(right_lines))
+        let line = right_lines[i]
+        let is_paragraph_start = v:false
+        
+        if i == 0 && trim(line) != ''
+            " First line is a paragraph start if not empty
+            let is_paragraph_start = v:true
+        elseif i > 0 && trim(line) != ''
+            " Check if this can be a paragraph start based on left buffer context
+            let prev_right_empty = trim(right_lines[i-1]) == ''
+            let left_line_empty = (i-1 < len(left_lines)) ? (trim(left_lines[i-1]) == '') : v:true
+            
+            if prev_right_empty || left_line_empty
+                let is_paragraph_start = v:true
+            endif
+        endif
+        
+        if is_paragraph_start
+            call add(right_para_positions, i + 1)  " Convert to 1-based line numbers
+        endif
+    endfor
+    
+    " Add text properties to corresponding lines in left buffer
+    " TODO use new SetTextProps function
+    let properties_added = 0
+    for line_num in right_para_positions
+        if line_num <= len(left_lines)
+            let left_line = left_lines[line_num - 1]  " Convert to 0-based for array access
+            if trim(left_line) != ''
+                " Add text property to the first word of the line
+                let first_word_end = match(left_line, '\S\+\zs')
+                if first_word_end > 0
+                    call prop_add(line_num, 1, {
+                        \ 'type': prop_type,
+                        \ 'length': first_word_end,
+                        \ 'bufnr': left_bufnr
+                        \ })
+                    let properties_added += 1
+                endif
+            else
+                " Line is empty, add text property to first column
+                call prop_add(line_num, 1, {
+                    \ 'type': prop_type,
+                    \ 'length': 0,
+                    \ 'bufnr': left_bufnr
+                    \ })
+                let properties_added += 1
+            endif
+        endif
+    endfor
+    
+    echomsg "Cleave: Refreshed " . properties_added . " text properties in left buffer"
+endfunction
+
 

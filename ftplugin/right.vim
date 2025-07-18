@@ -1,5 +1,5 @@
 syntax match Note /.*/
-hi link Note Todo
+hi link Note LineNr 
 "setlocal textwidth=0
 "setlocal wrapmargin=5
 "setlocal foldcolumn=0
