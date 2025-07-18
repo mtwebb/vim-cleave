@@ -5,3 +5,4 @@
     width_text:  width in columns setlocal textwidth of the LEFT buffer
     width_note:  width in columns setlocal textwidth of the RIGHT buffer 
      
+assumes there is a word in left buffer for first line in each paragraph in right buffer.  Should be find to align to a blank line. 
