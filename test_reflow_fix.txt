@@ -1,5 +1,0 @@
-Here is a line of text that is longer than 15 characters and should wrap
-
-This is another paragraph that is also longer than 15 characters
-
-Final paragraph here

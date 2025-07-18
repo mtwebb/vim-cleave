@@ -1,36 +1,35 @@
-vim: cc=58 tw=55 ve=all fdc=5 wm=3                        
+vim: cc=91 tw=79 ve=all fdc=5 wm=3                        
                                                           
 Sapien eget mi proin sed. Scelerisque felis imperdiet     In metus vulputate eu
-proin fermentum leo. Eget aliquet nibh praesent           scelerisque felis
-tristique magna sit. Interdum velit laoreet id donec      imperdiet proin fermentum
-ultrices tincidunt arcu. Arcu dictum varius duis at       leo. At lectus urna duis
-consectetur. Etiam sit amet nisl purus in mollis.         convallis convallis
-Iaculis nunc sed augue lacus. Tristique magna sit amet    tellus id. Turpis egestas
-purus gravida quis blandit turpis cursus. Tincidunt dui   maecenas pharetra
-ut ornare lectus sit amet est. Dolor purus non enim       convallis posuere morbi.
-praesent elementum facilisis leo vel fringilla. Natoque   Nunc mattis enim ut
-penatibus et magnis dis parturient. Mollis aliquam ut     tellus elementum sagittis
-porttitor leo. Ultrices mi tempus imperdiet nulla         vitae et. Eu consequat ac
-malesuada. In ornare quam viverra orci sagittis eu.       felis donec et. Libero
-Nunc eget lorem dolor sed viverra ipsum nunc aliquet      nunc consequat interdum
-bibendum. Cras sed felis eget velit aliquet sagittis id   varius sit amet mattis
-consectetur purus. Convallis convallis tellus id          vulputate.
+proin fermentum leo. Eget aliquet nibh praesent           scelerisque felis imperdiet
+tristique magna sit. Interdum velit laoreet id donec      proin fermentum leo. At lectus
+ultrices tincidunt arcu. Arcu dictum varius duis at       urna duis convallis convallis
+consectetur. Etiam sit amet nisl purus in mollis.         tellus id. Turpis egestas
+Iaculis nunc sed augue lacus. Tristique magna sit amet    maecenas pharetra convallis
+purus gravida quis blandit turpis cursus. Tincidunt dui   posuere morbi. Nunc mattis
+ut ornare lectus sit amet est. Dolor purus non enim       enim ut tellus elementum
+praesent elementum facilisis leo vel fringilla. Natoque   sagittis vitae et. Eu
+penatibus et magnis dis parturient. Mollis aliquam ut     consequat ac felis donec et.
+porttitor leo. Ultrices mi tempus imperdiet nulla         Libero nunc consequat interdum
+malesuada. In ornare quam viverra orci sagittis eu.       varius sit amet mattis
+Nunc eget lorem dolor sed viverra ipsum nunc aliquet      vulputate.
+bibendum. Cras sed felis eget velit aliquet sagittis id   
+consectetur purus. Convallis convallis tellus id          
 interdum velit laoreet id donec ultrices. Duis at         
 consectetur lorem donec. Consectetur adipiscing elit ut   
 aliquam purus.                                            
                                                           
                                                           
-In metus vulputate eu scelerisque felis imperdiet proin   Ultricies integer quis
-fermentum leo. At lectus urna duis convallis convallis    auctor elit sed vulputate
-tellus id. Turpis egestas maecenas pharetra convallis     mi sit amet. In dictum
-posuere morbi. Nunc mattis enim ut tellus elementum       non consectetur a erat
-sagittis vitae et. Eu consequat ac felis donec et.        nam at. A diam maecenas
-Libero nunc consequat interdum varius sit amet mattis     sed enim ut sem.
-vulputate. Ultricies integer quis auctor elit sed         Pellentesque elit eget
-vulputate mi sit amet. In dictum non consectetur a erat   gravida cum.
+In metus vulputate eu scelerisque felis imperdiet proin   Ultricies integer quis auctor
+fermentum leo. At lectus urna duis convallis convallis    elit sed vulputate mi sit
+tellus id. Turpis egestas maecenas pharetra convallis     amet. In dictum non
+posuere morbi. Nunc mattis enim ut tellus elementum       consectetur a erat nam at. A
+sagittis vitae et. Eu consequat ac felis donec et.        diam maecenas sed enim ut sem.
+Libero nunc consequat interdum varius sit amet mattis     Pellentesque elit eget gravida
+vulputate. Ultricies integer quis auctor elit sed         cum.
+vulputate mi sit amet. In dictum non consectetur a erat   
 nam at. A diam maecenas sed enim ut sem. Pellentesque     
 elit eget gravida cum.                                    
-                                                          
                                                           
                                                           
 Lorem ipsum dolor sit amet, consectetur adipiscing        
@@ -47,8 +46,8 @@ diam quam. Dui faucibus in ornare quam viverra. Sed
 vulputate mi sit amet mauris. Ultricies tristique nulla   
 aliquet enim tortor.                                      
                                                           
-Sapien eget mi proin sed. Scelerisque felis imperdiet     In fermentum posuere urna
-proin fermentum leo. Eget aliquet nibh praesent           nec tincidunt.
+Sapien eget mi proin sed. Scelerisque felis imperdiet     In fermentum posuere urna nec
+proin fermentum leo. Eget aliquet nibh praesent           tincidunt.
 tristique magna sit. Interdum velit laoreet id donec      
 ultrices tincidunt arcu. Arcu dictum varius duis at       
 consectetur. Etiam sit amet nisl purus in mollis.         

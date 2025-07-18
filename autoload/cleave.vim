@@ -354,6 +354,7 @@ function! cleave#reflow_right_buffer(new_width, current_bufnr, left_bufnr, right
     " Dedicated right buffer reflow logic
     " Step 1: Note line positions of first line in each paragraph in RIGHT buffer
     let current_lines = getline(1, '$')
+    let left_lines = getbufline(a:left_bufnr, 1, '$')
     let para_positions = []
     let paragraphs = []
     
@@ -368,8 +369,15 @@ function! cleave#reflow_right_buffer(new_width, current_bufnr, left_bufnr, right
         
         if i == 0 && trimmed_line != ''
             let is_paragraph_start = v:true
-        elseif i > 0 && trim(current_lines[i-1]) == '' && trimmed_line != ''
-            let is_paragraph_start = v:true
+        elseif i > 0 && trimmed_line != ''
+            " Check if this can be a paragraph start based on left buffer context
+            " Allow paragraph start if previous right line is empty OR corresponding left line is empty/whitespace
+            let prev_right_empty = trim(current_lines[i-1]) == ''
+            let left_line_empty = (i-1 < len(left_lines)) ? (trim(left_lines[i-1]) == '') : v:true
+            
+            if prev_right_empty || left_line_empty
+                let is_paragraph_start = v:true
+            endif
         endif
         
         if is_paragraph_start
@@ -539,6 +547,7 @@ function! cleave#reflow_left_buffer(new_width, current_bufnr, left_bufnr, right_
     " Dedicated left buffer reflow logic (updated to handle current right buffer state)
     " Step 1: Find paragraph positions in RIGHT buffer (current state)
     let right_lines = getbufline(a:right_bufnr, 1, '$')
+    let left_lines = getbufline(a:left_bufnr, 1, '$')
     let right_para_line_numbers = []
     
     "echomsg "CleaveReflow DEBUG: Right buffer has " . len(right_lines) . " lines"
@@ -550,9 +559,15 @@ function! cleave#reflow_left_buffer(new_width, current_bufnr, left_bufnr, right_
         if i == 0 && trim(line) != ''
             " First line is a paragraph start if not empty
             let is_paragraph_start = v:true
-        elseif i > 0 && trim(right_lines[i-1]) == '' && trim(line) != ''
-            " Line after empty line that's not empty
-            let is_paragraph_start = v:true
+        elseif i > 0 && trim(line) != ''
+            " Check if this can be a paragraph start based on left buffer context
+            " Allow paragraph start if previous right line is empty OR corresponding left line is empty/whitespace
+            let prev_right_empty = trim(right_lines[i-1]) == ''
+            let left_line_empty = (i-1 < len(left_lines)) ? (trim(left_lines[i-1]) == '') : v:true
+            
+            if prev_right_empty || left_line_empty
+                let is_paragraph_start = v:true
+            endif
         endif
         
         if is_paragraph_start
@@ -741,8 +756,9 @@ function! cleave#create_paragraph_mapping(current_para_positions, other_para_pos
     return mapping
 endfunction
 
-function! cleave#find_paragraph_positions(lines)
+function! cleave#find_paragraph_positions(lines, left_lines)
     " Find line numbers where paragraphs start (0-based)
+    " Takes both right buffer lines and corresponding left buffer lines for context
     let positions = []
     
     for i in range(len(a:lines))
@@ -752,9 +768,15 @@ function! cleave#find_paragraph_positions(lines)
         if i == 0 && trim(line) != ''
             " First line is a paragraph start if not empty
             let is_paragraph_start = v:true
-        elseif i > 0 && trim(a:lines[i-1]) == '' && trim(line) != ''
-            " Line after empty line that's not empty
-            let is_paragraph_start = v:true
+        elseif i > 0 && trim(line) != ''
+            " Check if this can be a paragraph start based on left buffer context
+            " Allow paragraph start if previous right line is empty OR corresponding left line is empty/whitespace
+            let prev_right_empty = trim(a:lines[i-1]) == ''
+            let left_line_empty = (i-1 < len(a:left_lines)) ? (trim(a:left_lines[i-1]) == '') : v:true
+            
+            if prev_right_empty || left_line_empty
+                let is_paragraph_start = v:true
+            endif
         endif
         
         if is_paragraph_start
@@ -836,13 +858,28 @@ function! cleave#restore_paragraph_alignment(right_bufnr, original_right_lines, 
     endfor
     "echomsg "RestoreAlignment DEBUG: Cleaned trailing whitespace from all lines"
     
+    " Get corresponding left buffer lines for context
+    let left_lines = []
+    let left_bufnr = -1
+    " Find the left buffer that corresponds to this right buffer
+    let original_bufnr = getbufvar(a:right_bufnr, 'cleave_original', -1)
+    if original_bufnr != -1
+        for i in range(1, bufnr("$"))
+            if bufexists(i) && getbufvar(i, 'cleave_original', -1) == original_bufnr && getbufvar(i, 'cleave_side', '') == 'left'
+                let left_bufnr = i
+                let left_lines = getbufline(i, 1, '$')
+                break
+            endif
+        endfor
+    endif
+    
     " Step 1: Extract paragraphs into data structures with their target line numbers
     let paragraphs = []
     let para_idx = 0
     let current_para_lines = []
     let current_para_start = -1
     
-    " Find paragraphs in cleaned right buffer
+    " Find paragraphs in cleaned right buffer using improved logic
     for i in range(len(cleaned_lines))
         let line = cleaned_lines[i]
         let trimmed_line = trim(line)
@@ -850,8 +887,15 @@ function! cleave#restore_paragraph_alignment(right_bufnr, original_right_lines, 
         
         if i == 0 && trimmed_line != ''
             let is_paragraph_start = v:true
-        elseif i > 0 && trim(cleaned_lines[i-1]) == '' && trimmed_line != ''
-            let is_paragraph_start = v:true
+        elseif i > 0 && trimmed_line != ''
+            " Check if this can be a paragraph start based on left buffer context
+            " Allow paragraph start if previous right line is empty OR corresponding left line is empty/whitespace
+            let prev_right_empty = trim(cleaned_lines[i-1]) == ''
+            let left_line_empty = (i-1 < len(left_lines)) ? (trim(left_lines[i-1]) == '') : v:true
+            
+            if prev_right_empty || left_line_empty
+                let is_paragraph_start = v:true
+            endif
         endif
         
         if is_paragraph_start
