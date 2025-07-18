@@ -66,18 +66,30 @@ COMMANDS                                     *cleave-commands*
 
     Key features:
     - Automatically detects which cleaved buffer has focus
-    - Preserves paragraph alignment between left and right buffers
+    - Preserves paragraph alignment between buffers
     - Maintains correspondence of paragraph positions across buffers
     - Updates window sizing automatically when reflowing the left buffer
     - Uses content-based matching to track paragraph positions
+    - Handles both left and right buffer reflow with dedicated algorithms
+    - Preserves original paragraph positioning when possible
     - Removes trailing whitespace during processing
     
-    The algorithm works by:
-    1. Identifying paragraph boundaries in both buffers
-    2. Storing the first word of each paragraph for tracking
-    3. Reflowing the text in the current buffer
-    4. Finding new paragraph positions by matching first words
-    5. Realigning the other buffer to maintain correspondence
+    The algorithm works differently for left vs right buffers:
+    
+    For LEFT buffer reflow:
+    1. Records paragraph positions in the RIGHT buffer
+    2. Stores first words from LEFT buffer paragraphs for tracking
+    3. Reflows the LEFT buffer text to new width
+    4. Finds new paragraph positions by matching first words
+    5. Realigns RIGHT buffer paragraphs to match new LEFT positions
+    6. Updates window sizing to accommodate new LEFT buffer width
+    
+    For RIGHT buffer reflow:
+    1. Identifies paragraph boundaries and content in RIGHT buffer
+    2. Reflows each paragraph individually to new width
+    3. Attempts to preserve original line positions when possible
+    4. Ensures proper spacing between paragraphs
+    5. LEFT buffer remains unchanged
 
     Minimum width: 10 characters
     
@@ -99,6 +111,18 @@ OPTIONS                                      *cleave-options*
     
     Example: >
         let g:cleave_auto_sync = v:true
+<
+
+*g:cleave_gutter*
+    Sets the number of spaces between the left and right content when joining
+    buffers with `:CleaveJoin`. This affects the spacing calculation and
+    determines how much padding is added between the left and right content
+    in the merged result.
+
+    Default: `3`
+    
+    Example: >
+        let g:cleave_gutter = 5
 <
 
 ==============================================================================

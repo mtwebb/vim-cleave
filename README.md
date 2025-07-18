@@ -92,6 +92,16 @@ When set to `v:true`, changes in one of the cleaved buffers will be reflected in
 let g:cleave_auto_sync = v:true
 ```
 
+#### `g:cleave_gutter`
+Sets the number of spaces between the left and right content when joining buffers. This affects the spacing calculation during `:CleaveJoin` operations.
+
+**Default:** `3`
+
+**Example:**
+```vim
+let g:cleave_gutter = 5
+```
+
 ## Use Cases
 
 - **Documentation Editing**: Split documentation with comments/annotations
