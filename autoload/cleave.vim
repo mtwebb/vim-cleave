@@ -475,74 +475,6 @@ function! cleave#reflow_right_buffer(new_width, current_bufnr, left_bufnr, right
     echomsg "Cleave: Reflowed right buffer to width " . a:new_width
 endfunction
 
-function! cleave#update_left_positions_after_right_reflow(left_bufnr, right_bufnr, old_para_positions, new_para_positions)
-    " Update left buffer paragraph positions to match new right buffer positions after reflow
-    " This ensures that corresponding paragraphs in left and right buffers stay aligned
-    
-    " Get the current left buffer content
-    let left_lines = getbufline(a:left_bufnr, 1, '$')
-    
-    " Store first words from left buffer at the old paragraph positions for matching
-    let para_first_words = []
-    for line_num in a:old_para_positions
-        if line_num <= len(left_lines)
-            let line_text = left_lines[line_num - 1]  " Convert to 0-based for array access
-            let first_word_match = matchstr(line_text, '\S\+')
-            call add(para_first_words, first_word_match)
-        else
-            call add(para_first_words, '')
-        endif
-    endfor
-    
-    " Find where each paragraph's first word appears in the left buffer
-    let updated_left_para_positions = []
-    let last_found_line = 0
-    
-    for i in range(len(para_first_words))
-        let target_word = para_first_words[i]
-        let new_right_pos = a:new_para_positions[i]
-        
-        if len(target_word) > 0
-            " Search for this first word in the left buffer
-            let found = v:false
-            for line_idx in range(last_found_line, len(left_lines))
-                let line = left_lines[line_idx]
-                let first_word_in_line = matchstr(line, '\S\+')
-                
-                if first_word_in_line == target_word
-                    " Check if this is a paragraph start
-                    let is_para_start = v:false
-                    if line_idx == 0 && trim(line) != ''
-                        let is_para_start = v:true
-                    elseif line_idx > 0 && trim(left_lines[line_idx-1]) == '' && trim(line) != ''
-                        let is_para_start = v:true
-                    endif
-                    
-                    if is_para_start
-                        call add(updated_left_para_positions, line_idx + 1)  " Convert to 1-based
-                        let last_found_line = line_idx + 1
-                        let found = v:true
-                        break
-                    endif
-                endif
-            endfor
-            
-            if !found
-                " If we can't find the word, use the new right position as fallback
-                call add(updated_left_para_positions, new_right_pos)
-            endif
-        else
-            " No first word, use the new right position
-            call add(updated_left_para_positions, new_right_pos)
-        endif
-    endfor
-    
-    " Realign left buffer paragraphs to match the new right buffer positions
-    if len(updated_left_para_positions) > 0
-        call cleave#restore_paragraph_alignment(a:left_bufnr, left_lines, a:new_para_positions)
-    endif
-endfunction
-
 function! cleave#reflow_left_buffer(new_width, current_bufnr, left_bufnr, right_bufnr)
     " Dedicated left buffer reflow logic (updated to handle current right buffer state)
     " Step 1: Find paragraph positions in RIGHT buffer (current state)
@@ -711,37 +643,6 @@ function! cleave#reflow_left_buffer(new_width, current_bufnr, left_bufnr, right_
     execute 'setlocal textwidth=' . a:new_width
     
     echomsg "Cleave: Reflowed left buffer to width " . a:new_width
-endfunction
-
-function! cleave#find_paragraph_positions(lines, left_lines)
-    " Find line numbers where paragraphs start (0-based)
-    " Takes both right buffer lines and corresponding left buffer lines for context
-    let positions = []
-    
-    for i in range(len(a:lines))
-        let line = a:lines[i]
-        let is_paragraph_start = v:false
-        
-        if i == 0 && trim(line) != ''
-            " First line is a paragraph start if not empty
-            let is_paragraph_start = v:true
-        elseif i > 0 && trim(line) != ''
-            " Check if this can be a paragraph start based on left buffer context
-            " Allow paragraph start if previous right line is empty OR corresponding left line is empty/whitespace
-            let prev_right_empty = trim(a:lines[i-1]) == ''
-            let left_line_empty = (i-1 < len(a:left_lines)) ? (trim(a:left_lines[i-1]) == '') : v:true
-            
-            if prev_right_empty || left_line_empty
-                let is_paragraph_start = v:true
-            endif
-        endif
-        
-        if is_paragraph_start
-            call add(positions, i)
-        endif
-    endfor
-    
-    return positions
 endfunction
 
 function! cleave#reflow_text(lines, width)
