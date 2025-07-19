@@ -5,6 +5,65 @@ if !exists('g:cleave_gutter')
     let g:cleave_gutter = 3
 endif
 
+" Script-local variables to store buffer numbers
+let s:cleave_original_bufnr = -1
+let s:cleave_left_bufnr = -1
+let s:cleave_right_bufnr = -1
+
+" Helper function to validate if stored buffer numbers are still valid
+function! s:validate_cleave_buffers()
+    return s:cleave_original_bufnr != -1 && 
+         \ s:cleave_left_bufnr != -1 && 
+         \ s:cleave_right_bufnr != -1 &&
+         \ bufexists(s:cleave_original_bufnr) &&
+         \ bufexists(s:cleave_left_bufnr) &&
+         \ bufexists(s:cleave_right_bufnr)
+endfunction
+
+" Helper function to get cleave buffer numbers with validation and fallback
+function! s:get_cleave_buffers()
+    " First try to use script-local variables if they're valid
+    if s:validate_cleave_buffers()
+        return [s:cleave_original_bufnr, s:cleave_left_bufnr, s:cleave_right_bufnr]
+    endif
+    
+    " Fallback: search through buffers using the old method
+    let current_bufnr = bufnr('%')
+    let original_bufnr = getbufvar(current_bufnr, 'cleave_original', -1)
+    
+    if original_bufnr == -1
+        return [-1, -1, -1]
+    endif
+    
+    let left_bufnr = -1
+    let right_bufnr = -1
+    for i in range(1, bufnr("$"))
+        if bufexists(i) && getbufvar(i, 'cleave_original', -1) == original_bufnr
+            if getbufvar(i, 'cleave_side', '') == 'left'
+                let left_bufnr = i
+            elseif getbufvar(i, 'cleave_side', '') == 'right'
+                let right_bufnr = i
+            endif
+        endif
+    endfor
+    
+    " Update script variables if we found valid buffers
+    if original_bufnr != -1 && left_bufnr != -1 && right_bufnr != -1
+        let s:cleave_original_bufnr = original_bufnr
+        let s:cleave_left_bufnr = left_bufnr
+        let s:cleave_right_bufnr = right_bufnr
+    endif
+    
+    return [original_bufnr, left_bufnr, right_bufnr]
+endfunction
+
+" Helper function to clear script-local variables
+function! s:clear_cleave_buffers()
+    let s:cleave_original_bufnr = -1
+    let s:cleave_left_bufnr = -1
+    let s:cleave_right_bufnr = -1
+endfunction
+
 function! cleave#split_buffer(bufnr, ...)
     " 1. Determine Cleave Column
     let cleave_col = 0
@@ -117,26 +176,13 @@ function! cleave#setup_windows(cleave_col, left_bufnr, right_bufnr, original_win
 endfunction
 
 function! cleave#undo_cleave()
-    let current_bufnr = bufnr('%')
-    let original_bufnr = getbufvar(current_bufnr, 'cleave_original', -1)
+    " Get buffer numbers using helper function
+    let [original_bufnr, left_bufnr, right_bufnr] = s:get_cleave_buffers()
 
-    if original_bufnr == -1
-        echoerr "Cleave: Not a cleave buffer."
+    if original_bufnr == -1 || left_bufnr == -1 || right_bufnr == -1
+        echoerr "Cleave: Not a cleave buffer or buffers not found."
         return
     endif
-
-    " Find the left and right buffers by iterating through all existing buffers
-    let left_bufnr = -1
-    let right_bufnr = -1
-    for i in range(1, bufnr("$"))
-        if bufexists(i) && getbufvar(i, 'cleave_original', -1) == original_bufnr
-            if getbufvar(i, 'cleave_side', '') == 'left'
-                let left_bufnr = i
-            elseif getbufvar(i, 'cleave_side', '') == 'right'
-                let right_bufnr = i
-            endif
-        endif
-    endfor
 
     " Find the windows associated with the buffers
     let left_win_id = get(win_findbuf(left_bufnr), 0, -1)
@@ -162,35 +208,27 @@ function! cleave#undo_cleave()
     if bufexists(right_bufnr)
         execute 'bdelete!' right_bufnr
     endif
+
+    " Clear script-local variables since cleave is undone
+    call s:clear_cleave_buffers()
 endfunction
 
 
 
 function! cleave#join_buffers()
-    let current_bufnr = bufnr('%')
-    let original_bufnr = getbufvar(current_bufnr, 'cleave_original', -1)
-    let cleave_col = getbufvar(current_bufnr, 'cleave_col', -1)
+    " Get buffer numbers using helper function
+    let [original_bufnr, left_bufnr, right_bufnr] = s:get_cleave_buffers()
 
-    if original_bufnr == -1 || cleave_col == -1
-        echoerr "Cleave: Not a cleave buffer or missing cleave column."
+    if original_bufnr == -1 || left_bufnr == -1 || right_bufnr == -1
+        echoerr "Cleave: Not a cleave buffer or buffers not found."
         return
     endif
 
-    " Find the left and right buffers
-    let left_bufnr = -1
-    let right_bufnr = -1
-    for i in range(1, bufnr("$"))
-        if bufexists(i) && getbufvar(i, 'cleave_original', -1) == original_bufnr
-            if getbufvar(i, 'cleave_side', '') == 'left'
-                let left_bufnr = i
-            elseif getbufvar(i, 'cleave_side', '') == 'right'
-                let right_bufnr = i
-            endif
-        endif
-    endfor
-
-    if left_bufnr == -1 || right_bufnr == -1
-        echoerr "Cleave: Could not find both left and right buffers."
+    " Get cleave column from buffer variables (still needed for joining logic)
+    let current_bufnr = bufnr('%')
+    let cleave_col = getbufvar(current_bufnr, 'cleave_col', -1)
+    if cleave_col == -1
+        echoerr "Cleave: Missing cleave column information."
         return
     endif
 
@@ -272,18 +310,18 @@ function! cleave#join_buffers()
         call win_gotoid(left_win_id)
     endif
 
+    " Clear script-local variables since buffers are joined
+    call s:clear_cleave_buffers()
+
     echomsg "Cleave: Buffers joined successfully."
 endfunction
 
 function! cleave#reflow_buffer(new_width)
-    " Detect if current buffer is a cleave buffer and which side
-    let current_bufnr = bufnr('%')
-    let original_bufnr = getbufvar(current_bufnr, 'cleave_original', -1)
-    let current_side = getbufvar(current_bufnr, 'cleave_side', '')
-    let cleave_col = getbufvar(current_bufnr, 'cleave_col', -1)
+    " Get buffer numbers using helper function
+    let [original_bufnr, left_bufnr, right_bufnr] = s:get_cleave_buffers()
     
-    if original_bufnr == -1 || empty(current_side)
-        echoerr "Cleave: Current buffer is not a cleave buffer (.left or .right)"
+    if original_bufnr == -1 || left_bufnr == -1 || right_bufnr == -1
+        echoerr "Cleave: Not a cleave buffer or buffers not found."
         return
     endif
     
@@ -292,22 +330,12 @@ function! cleave#reflow_buffer(new_width)
         return
     endif
     
-    " Find both left and right buffers
-    let left_bufnr = -1
-    let right_bufnr = -1
-    for i in range(1, bufnr("$"))
-        if bufexists(i) && getbufvar(i, 'cleave_original', -1) == original_bufnr
-            let side = getbufvar(i, 'cleave_side', '')
-            if side == 'left'
-                let left_bufnr = i
-            elseif side == 'right'
-                let right_bufnr = i
-            endif
-        endif
-    endfor
+    " Detect which side the current buffer is
+    let current_bufnr = bufnr('%')
+    let current_side = getbufvar(current_bufnr, 'cleave_side', '')
     
-    if left_bufnr == -1 || right_bufnr == -1
-        echoerr "Cleave: Could not find both left and right buffers"
+    if empty(current_side)
+        echoerr "Cleave: Current buffer is not a cleave buffer (.left or .right)"
         return
     endif
     
@@ -852,19 +880,26 @@ function! cleave#restore_paragraph_alignment(right_bufnr, original_right_lines, 
     endfor
     "echomsg "RestoreAlignment DEBUG: Cleaned trailing whitespace from all lines"
     
-    " Get corresponding left buffer lines for context
+    " Get corresponding left buffer lines for context using script variables
     let left_lines = []
     let left_bufnr = -1
-    " Find the left buffer that corresponds to this right buffer
-    let original_bufnr = getbufvar(a:right_bufnr, 'cleave_original', -1)
-    if original_bufnr != -1
-        for i in range(1, bufnr("$"))
-            if bufexists(i) && getbufvar(i, 'cleave_original', -1) == original_bufnr && getbufvar(i, 'cleave_side', '') == 'left'
-                let left_bufnr = i
-                let left_lines = getbufline(i, 1, '$')
-                break
-            endif
-        endfor
+    
+    " Try to use script-local variables first
+    if s:validate_cleave_buffers() && s:cleave_right_bufnr == a:right_bufnr
+        let left_bufnr = s:cleave_left_bufnr
+        let left_lines = getbufline(left_bufnr, 1, '$')
+    else
+        " Fallback: Find the left buffer that corresponds to this right buffer
+        let original_bufnr = getbufvar(a:right_bufnr, 'cleave_original', -1)
+        if original_bufnr != -1
+            for i in range(1, bufnr("$"))
+                if bufexists(i) && getbufvar(i, 'cleave_original', -1) == original_bufnr && getbufvar(i, 'cleave_side', '') == 'left'
+                    let left_bufnr = i
+                    let left_lines = getbufline(i, 1, '$')
+                    break
+                endif
+            endfor
+        endif
     endif
     
     " Step 1: Extract paragraphs into data structures with their target line numbers
@@ -1016,32 +1051,11 @@ function! cleave#realign_other_buffer(other_bufnr, other_lines, para_mapping, ne
 endfunction
 
 function! cleave#set_text_properties()
-    " Set text properties in the left buffer based on paragraph starts in the right buffer
-    let current_bufnr = bufnr('%')
-    let original_bufnr = getbufvar(current_bufnr, 'cleave_original', -1)
-    let current_side = getbufvar(current_bufnr, 'cleave_side', '')
+    " Get buffer numbers using helper function
+    let [original_bufnr, left_bufnr, right_bufnr] = s:get_cleave_buffers()
     
-    if original_bufnr == -1 || empty(current_side)
-        echoerr "Cleave: Current buffer is not a cleave buffer (.left or .right)"
-        return
-    endif
-    
-    " Find both left and right buffers
-    let left_bufnr = -1
-    let right_bufnr = -1
-    for i in range(1, bufnr("$"))
-        if bufexists(i) && getbufvar(i, 'cleave_original', -1) == original_bufnr
-            let side = getbufvar(i, 'cleave_side', '')
-            if side == 'left'
-                let left_bufnr = i
-            elseif side == 'right'
-                let right_bufnr = i
-            endif
-        endif
-    endfor
-    
-    if left_bufnr == -1 || right_bufnr == -1
-        echoerr "Cleave: Could not find both left and right buffers"
+    if original_bufnr == -1 || left_bufnr == -1 || right_bufnr == -1
+        echoerr "Cleave: Not a cleave buffer or buffers not found."
         return
     endif
     
@@ -1129,28 +1143,18 @@ function! cleave#update_right_from_left_props()
     " Update right buffer after left buffer has changed, using existing text property locations
     " This is similar to reflow_right_buffer but uses existing text properties instead of recalculating
     let current_bufnr = bufnr('%')
-    let original_bufnr = getbufvar(current_bufnr, 'cleave_original', -1)
     let current_side = getbufvar(current_bufnr, 'cleave_side', '')
     
-    if original_bufnr == -1 || current_side != 'left'
+    if current_side != 'left'
         echoerr "Cleave: This function must be called from a left buffer"
         return
     endif
     
-    " Find the right buffer
-    let right_bufnr = -1
-    for i in range(1, bufnr("$"))
-        if bufexists(i) && getbufvar(i, 'cleave_original', -1) == original_bufnr
-            let side = getbufvar(i, 'cleave_side', '')
-            if side == 'right'
-                let right_bufnr = i
-                break
-            endif
-        endif
-    endfor
+    " Get buffer numbers using helper function
+    let [original_bufnr, left_bufnr, right_bufnr] = s:get_cleave_buffers()
     
-    if right_bufnr == -1
-        echoerr "Cleave: Could not find corresponding right buffer"
+    if original_bufnr == -1 || left_bufnr == -1 || right_bufnr == -1
+        echoerr "Cleave: Not a cleave buffer or buffers not found."
         return
     endif
     
