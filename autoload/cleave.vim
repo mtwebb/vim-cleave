@@ -319,6 +319,7 @@ endfunction
 function! cleave#reflow_right_buffer(new_width, current_bufnr, left_bufnr, right_bufnr)
     " Dedicated right buffer reflow logic
     " Step 1: Note line positions of first line in each paragraph in RIGHT buffer
+    "XXX this assumes in right buffer: TODO add logic to always use riht 
     let current_lines = getline(1, '$')
     let left_lines = getbufline(a:left_bufnr, 1, '$')
     let para_positions = []
@@ -1191,20 +1192,69 @@ function! cleave#update_right_from_left_props()
         return
     endif
     
+    " DEBUG: Print text properties found in left buffer
+    echomsg "DEBUG CleaveUpdateRight: Text properties found at lines: " . string(text_props)
+    for prop_line in text_props
+        if prop_line <= len(left_lines)
+            let left_content = trim(left_lines[prop_line - 1])
+            echomsg "DEBUG CleaveUpdateRight: Left line " . prop_line . ": '" . left_content . "'"
+        endif
+    endfor
+    
     " Get current right buffer content
     let right_lines = getbufline(right_bufnr, 1, '$')
     let paragraphs = []
     
-    " Extract paragraphs from right buffer using text property positions as guides
+    " DEBUG: Print first lines of paragraphs in right buffer before processing
+    echomsg "DEBUG CleaveUpdateRight: Right buffer paragraph analysis:"
     for i in range(len(text_props))
         let prop_line = text_props[i]
+        if prop_line <= len(right_lines)
+            let right_content = trim(right_lines[prop_line - 1])
+            echomsg "DEBUG CleaveUpdateRight: Right line " . prop_line . ": '" . right_content . "'"
+        endif
+    endfor
+    
+    " Find actual paragraph positions in right buffer (not assuming they match text properties)
+    let right_para_positions = []
+    let left_lines = getbufline(current_bufnr, 1, '$')
+    
+    " Find paragraph start positions in right buffer using same logic as other functions
+    for i in range(len(right_lines))
+        let line = right_lines[i]
+        let is_paragraph_start = v:false
+        
+        if i == 0 && trim(line) != ''
+            " First line is a paragraph start if not empty
+            let is_paragraph_start = v:true
+        elseif i > 0 && trim(line) != ''
+            " Check if this can be a paragraph start based on left buffer context
+            let prev_right_empty = trim(right_lines[i-1]) == ''
+            let left_line_empty = (i-1 < len(left_lines)) ? (trim(left_lines[i-1]) == '') : v:true
+            
+            if prev_right_empty || left_line_empty
+                let is_paragraph_start = v:true
+            endif
+        endif
+        
+        if is_paragraph_start
+            call add(right_para_positions, i + 1)  " Convert to 1-based line numbers
+        endif
+    endfor
+    
+    " DEBUG: Show actual paragraph positions found in right buffer
+    echomsg "DEBUG CleaveUpdateRight: Actual right buffer paragraphs found at lines: " . string(right_para_positions)
+    
+    " Extract paragraphs from their actual positions in right buffer
+    for i in range(len(right_para_positions))
+        let para_start = right_para_positions[i]
         let para_lines = []
         
-        " Determine paragraph end (next property line or end of buffer)
-        let para_end = (i + 1 < len(text_props)) ? text_props[i + 1] - 1 : len(right_lines)
+        " Determine paragraph end (next paragraph start or end of buffer)
+        let para_end = (i + 1 < len(right_para_positions)) ? right_para_positions[i + 1] - 1 : len(right_lines)
         
         " Collect non-empty lines from this paragraph
-        for line_idx in range(prop_line - 1, para_end - 1)
+        for line_idx in range(para_start - 1, para_end - 1)
             if line_idx < len(right_lines)
                 let line_content = trim(right_lines[line_idx])
                 if !empty(line_content)
@@ -1213,8 +1263,12 @@ function! cleave#update_right_from_left_props()
             endif
         endfor
         
+        " Map this paragraph to the corresponding text property position
+        let target_line = (i < len(text_props)) ? text_props[i] : para_start
+        
         if !empty(para_lines)
-            call add(paragraphs, {'start_line': prop_line, 'content': para_lines})
+            call add(paragraphs, {'start_line': target_line, 'content': para_lines})
+            echomsg "DEBUG CleaveUpdateRight: Paragraph " . i . " found at line " . para_start . ", will be placed at line " . target_line
         endif
     endfor
     
@@ -1225,23 +1279,53 @@ function! cleave#update_right_from_left_props()
         call add(reflowed_paragraphs, {'start_line': para.start_line, 'content': reflowed_content})
     endfor
     
-    " Reconstruct right buffer preserving text property positions
+    " Reconstruct right buffer preserving text property positions with conflict resolution
     let new_right_lines = []
-    let current_line = 1
+    let current_line_num = 1
     
-    for para in reflowed_paragraphs
+    for i in range(len(reflowed_paragraphs))
+        let para = reflowed_paragraphs[i]
         let target_line = para.start_line
+        let para_length = len(para.content)
         
-        " Add empty lines to reach target position
-        while current_line < target_line
-            call add(new_right_lines, '')
-            let current_line += 1
-        endwhile
+        " Check if we can fit this paragraph at its original position
+        let can_fit_at_original = v:true
         
-        " Add reflowed paragraph content
+        " Check if placing at original position would overlap with next paragraph
+        if i < len(reflowed_paragraphs) - 1
+            let next_target = reflowed_paragraphs[i + 1].start_line
+            let para_end_at_original = target_line + para_length - 1
+            
+            " Need at least one blank line between paragraphs
+            if para_end_at_original >= next_target
+                let can_fit_at_original = v:false
+            endif
+        endif
+        
+        " Determine actual placement position
+        let actual_position = target_line
+        if current_line_num > target_line || !can_fit_at_original
+            " Can't fit at original position, place at current position with separation
+            let actual_position = current_line_num
+            
+            " Ensure at least one blank line separation from previous content
+            if current_line_num > 1 && len(new_right_lines) > 0 && new_right_lines[-1] != ''
+                call add(new_right_lines, '')
+                let current_line_num += 1
+                let actual_position = current_line_num
+            endif
+        else
+            " Can fit at original position, add empty lines to reach it
+            while current_line_num < target_line
+                call add(new_right_lines, '')
+                let current_line_num += 1
+            endwhile
+        endif
+        
+        " Add the reflowed paragraph content
         for content_line in para.content
             call add(new_right_lines, content_line)
-            let current_line += 1
+            let current_line_num += 1
         endfor
     endfor
     
@@ -1250,6 +1334,18 @@ function! cleave#update_right_from_left_props()
     if getbufinfo(right_bufnr)[0].linecount > len(new_right_lines)
         call deletebufline(right_bufnr, len(new_right_lines) + 1, '$')
     endif
+    
+    " DEBUG: Print final state of right buffer paragraphs
+    let final_right_lines = getbufline(right_bufnr, 1, '$')
+    echomsg "DEBUG CleaveUpdateRight: Final right buffer paragraph analysis:"
+    for prop_line in text_props
+        if prop_line <= len(final_right_lines)
+            let final_right_content = trim(final_right_lines[prop_line - 1])
+            echomsg "DEBUG CleaveUpdateRight: Final right line " . prop_line . ": '" . final_right_content . "'"
+        else
+            echomsg "DEBUG CleaveUpdateRight: Final right line " . prop_line . ": [LINE DOES NOT EXIST]"
+        endif
+    endfor
     
     echomsg "Cleave: Updated right buffer using existing text properties (width " . right_textwidth . ")"
 endfunction
