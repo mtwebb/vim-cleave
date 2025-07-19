@@ -713,49 +713,6 @@ function! cleave#reflow_left_buffer(new_width, current_bufnr, left_bufnr, right_
     echomsg "Cleave: Reflowed left buffer to width " . a:new_width
 endfunction
 
-function! cleave#create_paragraph_mapping(current_para_positions, other_para_positions)
-    " Create mapping between current buffer paragraphs and other buffer paragraphs
-    " Returns list of [other_buffer_para_start, other_buffer_para_end] for each current paragraph
-    let mapping = []
-    let other_idx = 0
-    
-    for current_pos in a:current_para_positions
-        " Find the closest paragraph in other buffer that starts at or after current_pos
-        let best_other_idx = -1
-        let best_distance = 999999
-        
-        for i in range(len(a:other_para_positions))
-            let other_pos = a:other_para_positions[i]
-            let distance = abs(current_pos - other_pos)
-            
-            " Prefer paragraphs that are close and haven't been used yet
-            if distance < best_distance && i >= other_idx
-                let best_distance = distance
-                let best_other_idx = i
-            endif
-        endfor
-        
-        if best_other_idx >= 0 && best_distance <= 3
-            " Found a corresponding paragraph
-            let para_start = a:other_para_positions[best_other_idx]
-            
-            " Find end of this paragraph
-            let para_end = -1
-            if best_other_idx + 1 < len(a:other_para_positions)
-                let para_end = a:other_para_positions[best_other_idx + 1] - 1
-            endif
-            
-            call add(mapping, [para_start, para_end])
-            let other_idx = best_other_idx + 1
-        else
-            " No corresponding paragraph found
-            call add(mapping, [-1, -1])
-        endif
-    endfor
-    
-    return mapping
-endfunction
-
 function! cleave#find_paragraph_positions(lines, left_lines)
     " Find line numbers where paragraphs start (0-based)
     " Takes both right buffer lines and corresponding left buffer lines for context
@@ -995,61 +952,6 @@ function! cleave#restore_paragraph_alignment(right_bufnr, original_right_lines, 
     "echomsg "RestoreAlignment DEBUG: Right buffer now has " . getbufinfo(a:right_bufnr)[0].linecount . " lines"
 endfunction
 
-function! cleave#realign_other_buffer(other_bufnr, other_lines, para_mapping, new_para_positions)
-    " Realign other buffer paragraphs to match new paragraph positions
-    let adjusted_lines = []
-    let target_line = 0
-    
-    " Process each new paragraph position with its corresponding mapping
-    for i in range(len(a:new_para_positions))
-        let new_pos = a:new_para_positions[i]
-        
-        " Add empty lines to reach the target position
-        while target_line < new_pos
-            call add(adjusted_lines, '')
-            let target_line += 1
-        endwhile
-        
-        " Get the corresponding paragraph from other buffer using mapping
-        if i < len(a:para_mapping)
-            let [para_start, para_end] = a:para_mapping[i]
-            
-            if para_start >= 0
-                " Determine actual end if not specified
-                if para_end < 0
-                    let para_end = len(a:other_lines) - 1
-                    " Find last non-empty line
-                    while para_end > para_start && trim(a:other_lines[para_end]) == ''
-                        let para_end -= 1
-                    endwhile
-                endif
-                
-                " Copy the paragraph lines
-                for line_idx in range(para_start, para_end)
-                    if line_idx < len(a:other_lines)
-                        call add(adjusted_lines, a:other_lines[line_idx])
-                        let target_line += 1
-                    endif
-                endfor
-            else
-                " No corresponding paragraph, add empty line
-                call add(adjusted_lines, '')
-                let target_line += 1
-            endif
-        else
-            " No mapping for this paragraph, add empty line
-            call add(adjusted_lines, '')
-            let target_line += 1
-        endif
-    endfor
-    
-    " Update other buffer
-    call setbufline(a:other_bufnr, 1, adjusted_lines)
-    if getbufinfo(a:other_bufnr)[0].linecount > len(adjusted_lines)
-        call deletebufline(a:other_bufnr, len(adjusted_lines) + 1, '$')
-    endif
-endfunction
-
 function! cleave#set_text_properties()
     " Get buffer numbers using helper function
     let [original_bufnr, left_bufnr, right_bufnr] = s:get_cleave_buffers()
@@ -1070,8 +972,8 @@ function! cleave#set_text_properties()
     try
         "TODO: indicate the word note is anchored to
         "underline perhaps? 
-        "call prop_type_add(prop_type, {'highlight': 'LineNr'})
-        call prop_type_add(prop_type, {})
+        call prop_type_add(prop_type, {'highlight': 'MatchParen'})
+        "call prop_type_add(prop_type, {})
     catch /E969:/
         " Property type already exists, that's fine
     endtry
@@ -1108,7 +1010,6 @@ function! cleave#set_text_properties()
     endfor
     
     " Add text properties to corresponding lines in left buffer
-    " TODO use new SetTextProps function
     let properties_added = 0
     for line_num in right_para_positions
         if line_num <= len(left_lines)
