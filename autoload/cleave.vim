@@ -75,6 +75,8 @@ function! cleave#create_buffers(left_lines, right_lines, original_name, original
     setlocal bufhidden=hide
     setlocal noswapfile
     execute 'setlocal foldcolumn=' . a:original_foldcolumn
+    " Set textwidth based on longest line in left buffer
+    call cleave#set_textwidth_to_longest_line()
     
     " Create right buffer
     silent execute 'enew'
@@ -86,6 +88,8 @@ function! cleave#create_buffers(left_lines, right_lines, original_name, original
     setlocal noswapfile
     setlocal foldcolumn=0
     setlocal filetype=right
+    " Set textwidth based on longest line in right buffer
+    call cleave#set_textwidth_to_longest_line()
 
     return [left_bufnr, right_bufnr]
 endfunction
@@ -775,6 +779,28 @@ function! cleave#reflow_text(lines, width)
     endif
     
     return reflowed
+endfunction
+
+function! cleave#set_textwidth_to_longest_line()
+    " Set textwidth option to the length of the longest line in the current buffer
+    " Ignores trailing whitespace when calculating line length
+    let max_length = 0
+    let line_count = line('$')
+    
+    for line_num in range(1, line_count)
+        let line_text = getline(line_num)
+        " Remove trailing whitespace before calculating length
+        let trimmed_line = substitute(line_text, '\s\+$', '', '')
+        let line_length = len(trimmed_line)
+        if line_length > max_length
+            let max_length = line_length
+        endif
+    endfor
+    
+    " Set textwidth to the maximum line length found
+    execute 'setlocal textwidth=' . max_length
+    
+    return max_length
 endfunction
 
 function! cleave#wrap_paragraph(paragraph_lines, width)
