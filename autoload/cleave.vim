@@ -38,7 +38,12 @@ function! cleave#split_buffer(bufnr, ...)
     " 4. Window Management
     call cleave#setup_windows(cleave_col, left_bufnr, right_bufnr, original_winid, original_cursor, original_foldcolumn)
 
-    " 5. Set buffer variables for potential undo
+    " 5. Set global variables to store buffer numbers
+    let g:cleave_original_bufnr = original_bufnr
+    let g:cleave_left_bufnr = left_bufnr
+    let g:cleave_right_bufnr = right_bufnr
+
+    " 6. Set buffer variables for potential undo
     call setbufvar(left_bufnr, 'cleave_original', original_bufnr)
     call setbufvar(left_bufnr, 'cleave_side', 'left')
     call setbufvar(left_bufnr, 'cleave_col', cleave_col)
