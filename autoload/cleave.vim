@@ -350,9 +350,10 @@ function! cleave#reflow_buffer(new_width)
 endfunction
 
 function! cleave#reflow_right_buffer(new_width, current_bufnr, left_bufnr, right_bufnr)
-    " Dedicated right buffer reflow logic
+    " Dedicated right buffer reflow logic. Assumed called in right buffer
+    " Reflows the content to new width attempting to keep existing paragraph
+    " Start locations. Does not not reference 
     " Step 1: Note line positions of first line in each paragraph in RIGHT buffer
-    "XXX this assumes in right buffer: TODO add logic to always use riht 
     let current_lines = getline(1, '$')
     let left_lines = getbufline(a:left_bufnr, 1, '$')
     let para_positions = []
@@ -370,6 +371,8 @@ function! cleave#reflow_right_buffer(new_width, current_bufnr, left_bufnr, right
         if i == 0 && trimmed_line != ''
             let is_paragraph_start = v:true
         elseif i > 0 && trimmed_line != ''
+            " XXX Check this logic:  Why should it reference empty lines in
+            " left buffer? 
             " Check if this can be a paragraph start based on left buffer context
             " Allow paragraph start if previous right line is empty OR corresponding left line is empty/whitespace
             let prev_right_empty = trim(current_lines[i-1]) == ''
