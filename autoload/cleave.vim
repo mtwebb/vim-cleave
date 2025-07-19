@@ -46,6 +46,9 @@ function! cleave#split_buffer(bufnr, ...)
     call setbufvar(right_bufnr, 'cleave_side', 'right')
     call setbufvar(right_bufnr, 'cleave_col', cleave_col)
 
+    " 6. Initialize text properties to show paragraph alignment
+    call cleave#set_text_properties()
+
 endfunction
 
 function! cleave#split_content(lines, cleave_col)
