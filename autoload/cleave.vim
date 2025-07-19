@@ -1090,4 +1090,139 @@ function! cleave#set_text_properties()
     echomsg "Cleave: Refreshed " . properties_added . " text properties in left buffer"
 endfunction
 
+function! cleave#update_right_from_left_props()
+    " Update right buffer after left buffer has changed, using existing text property locations
+    " This is similar to reflow_right_buffer but uses existing text properties instead of recalculating
+    let current_bufnr = bufnr('%')
+    let original_bufnr = getbufvar(current_bufnr, 'cleave_original', -1)
+    let current_side = getbufvar(current_bufnr, 'cleave_side', '')
+    
+    if original_bufnr == -1 || current_side != 'left'
+        echoerr "Cleave: This function must be called from a left buffer"
+        return
+    endif
+    
+    " Find the right buffer
+    let right_bufnr = -1
+    for i in range(1, bufnr("$"))
+        if bufexists(i) && getbufvar(i, 'cleave_original', -1) == original_bufnr
+            let side = getbufvar(i, 'cleave_side', '')
+            if side == 'right'
+                let right_bufnr = i
+                break
+            endif
+        endif
+    endfor
+    
+    if right_bufnr == -1
+        echoerr "Cleave: Could not find corresponding right buffer"
+        return
+    endif
+    
+    " Get the textwidth from the right buffer
+    let right_textwidth = getbufvar(right_bufnr, '&textwidth', 0)
+    if right_textwidth == 0
+        " If textwidth is not set, try to get it from the window
+        let right_winid = get(win_findbuf(right_bufnr), 0, -1)
+        if right_winid != -1
+            let right_textwidth = getwinvar(right_winid, '&textwidth', 80)
+        else
+            let right_textwidth = 80  " Default fallback
+        endif
+    endif
+    
+    if right_textwidth < 10
+        echoerr "Cleave: Right buffer textwidth must be at least 10 characters (current: " . right_textwidth . ")"
+        return
+    endif
+    
+    " Check if text properties are supported
+    if !has('textprop')
+        echomsg "Cleave: Text properties not supported - falling back to standard reflow"
+        call cleave#reflow_right_buffer(right_textwidth, current_bufnr, current_bufnr, right_bufnr)
+        return
+    endif
+    
+    " Get existing text properties from left buffer
+    let prop_type = 'cleave_paragraph_start'
+    let left_lines = getline(1, '$')
+    let text_props = []
+    
+    " Collect all text properties of our type
+    for line_num in range(1, len(left_lines))
+        let props = prop_list(line_num, {'types': [prop_type]})
+        if !empty(props)
+            call add(text_props, line_num)
+        endif
+    endfor
+    
+    if empty(text_props)
+        echomsg "Cleave: No text properties found - falling back to standard reflow"
+        call cleave#reflow_right_buffer(right_textwidth, current_bufnr, current_bufnr, right_bufnr)
+        return
+    endif
+    
+    " Get current right buffer content
+    let right_lines = getbufline(right_bufnr, 1, '$')
+    let paragraphs = []
+    
+    " Extract paragraphs from right buffer using text property positions as guides
+    for i in range(len(text_props))
+        let prop_line = text_props[i]
+        let para_lines = []
+        
+        " Determine paragraph end (next property line or end of buffer)
+        let para_end = (i + 1 < len(text_props)) ? text_props[i + 1] - 1 : len(right_lines)
+        
+        " Collect non-empty lines from this paragraph
+        for line_idx in range(prop_line - 1, para_end - 1)
+            if line_idx < len(right_lines)
+                let line_content = trim(right_lines[line_idx])
+                if !empty(line_content)
+                    call add(para_lines, line_content)
+                endif
+            endif
+        endfor
+        
+        if !empty(para_lines)
+            call add(paragraphs, {'start_line': prop_line, 'content': para_lines})
+        endif
+    endfor
+    
+    " Reflow each paragraph to right buffer's textwidth
+    let reflowed_paragraphs = []
+    for para in paragraphs
+        let reflowed_content = cleave#wrap_paragraph(para.content, right_textwidth)
+        call add(reflowed_paragraphs, {'start_line': para.start_line, 'content': reflowed_content})
+    endfor
+    
+    " Reconstruct right buffer preserving text property positions
+    let new_right_lines = []
+    let current_line = 1
+    
+    for para in reflowed_paragraphs
+        let target_line = para.start_line
+        
+        " Add empty lines to reach target position
+        while current_line < target_line
+            call add(new_right_lines, '')
+            let current_line += 1
+        endwhile
+        
+        " Add reflowed paragraph content
+        for content_line in para.content
+            call add(new_right_lines, content_line)
+            let current_line += 1
+        endfor
+    endfor
+    
+    " Update right buffer
+    call setbufline(right_bufnr, 1, new_right_lines)
+    if getbufinfo(right_bufnr)[0].linecount > len(new_right_lines)
+        call deletebufline(right_bufnr, len(new_right_lines) + 1, '$')
+    endif
+    
+    echomsg "Cleave: Updated right buffer using existing text properties (width " . right_textwidth . ")"
+endfunction
+
 
