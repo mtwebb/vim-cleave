@@ -772,6 +772,73 @@ function! cleave#get_left_buffer_paragraph_lines()
     return para_line_numbers
 endfunction
 
+function! cleave#toggle_paragraph_highlight()
+    " Toggle the highlight group for cleave_paragraph_start between Normal and MatchParen
+    if !has('textprop')
+        echomsg "Cleave: Text properties not supported in this Vim version"
+        return
+    endif
+    
+    let prop_type = 'cleave_paragraph_start'
+    
+    " Check if the property type exists
+    try
+        let current_highlight = prop_type_get(prop_type)
+    catch
+        echomsg "Cleave: Text property type '" . prop_type . "' not found"
+        return
+    endtry
+    
+    " Get current highlight group
+    let current_group = get(current_highlight, 'highlight', 'Normal')
+    
+    " Toggle between Normal and MatchParen
+    if current_group == 'Normal'
+        let new_group = 'MatchParen'
+    else
+        let new_group = 'Normal'
+    endif
+    
+    " Update the property type with new highlight
+    call prop_type_change(prop_type, {'highlight': new_group})
+    
+    " Force immediate visual update by temporarily moving cursor in each cleave window
+    let [original_bufnr, left_bufnr, right_bufnr] = s:get_cleave_buffers()
+    let current_winid = win_getid()
+    
+    " Update left buffer windows
+    if left_bufnr != -1
+        for winid in win_findbuf(left_bufnr)
+            let saved_winid = win_getid()
+            call win_gotoid(winid)
+            let saved_pos = getcurpos()
+            " Trigger text property refresh by briefly moving cursor
+            execute "normal! \<C-L>"
+            call setpos('.', saved_pos)
+            call win_gotoid(saved_winid)
+        endfor
+    endif
+    
+    " Update right buffer windows  
+    if right_bufnr != -1
+        for winid in win_findbuf(right_bufnr)
+            let saved_winid = win_getid()
+            call win_gotoid(winid)
+            let saved_pos = getcurpos()
+            " Trigger text property refresh by briefly moving cursor
+            execute "normal! \<C-L>"
+            call setpos('.', saved_pos)
+            call win_gotoid(saved_winid)
+        endfor
+    endif
+    
+    " Return to original window and force final redraw
+    call win_gotoid(current_winid)
+    redraw!
+    
+    echomsg "Cleave: Paragraph highlight changed to " . new_group
+endfunction
+
 function! cleave#place_right_paragraphs_at_lines(target_line_numbers)
     " Places paragraphs from the right buffer at specified line numbers
     " If a paragraph would overlap with a previously placed paragraph, 
