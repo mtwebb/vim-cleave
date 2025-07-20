@@ -98,6 +98,33 @@ COMMANDS                                     *cleave-commands*
     This reflows the current buffer to 60 characters width while maintaining
     alignment with the corresponding buffer.
 
+*:CleaveAlign*                               *cleave-align*
+    Aligns right buffer paragraphs to match left buffer paragraph positions.
+    This command is useful when paragraph alignment has been disrupted and
+    needs to be restored.
+
+    Key features:
+    - Uses text properties to identify paragraph positions in the left buffer
+    - Automatically creates text properties if they don't exist
+    - Handles paragraph overlap conflicts by sliding paragraphs down
+    - Maintains proper spacing between paragraphs
+    - Provides feedback on actual paragraph placement
+    - Works independently of current buffer focus
+
+    The command performs the following steps:
+    1. Retrieves paragraph start positions from left buffer text properties
+    2. Extracts all paragraphs from the right buffer
+    3. Attempts to place each paragraph at its corresponding left buffer position
+    4. Resolves conflicts by sliding overlapping paragraphs down
+    5. Ensures at least one blank line between paragraphs
+    6. Reports the actual positions where paragraphs were placed
+
+    Example: >
+        :CleaveAlign
+<
+    This realigns the right buffer paragraphs to match the left buffer's
+    paragraph structure.
+
 ==============================================================================
 OPTIONS                                      *cleave-options*
 
@@ -129,6 +156,9 @@ Basic workflow: >
     
     " Reflow the left buffer to 60 characters
     :CleaveReflow 60
+    
+    " Realign paragraphs if needed
+    :CleaveAlign
     
     " Join the buffers back together
     :CleaveJoin

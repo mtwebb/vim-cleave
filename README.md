@@ -80,6 +80,21 @@ Reflows the text in the current buffer (left or right) to the specified width.
 :CleaveReflow 60
 ```
 
+#### `:CleaveAlign`
+Aligns right buffer paragraphs to match left buffer paragraph positions. This command is useful when paragraph alignment has been disrupted and needs to be restored.
+
+**Key features:**
+- Uses text properties to identify paragraph positions in the left buffer
+- Automatically creates text properties if they don't exist
+- Handles paragraph overlap conflicts by sliding paragraphs down
+- Maintains proper spacing between paragraphs
+- Provides feedback on actual paragraph placement
+
+**Example:**
+```vim
+:CleaveAlign
+```
+
 ### Options
 
 #### `g:cleave_gutter`
