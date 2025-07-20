@@ -877,6 +877,21 @@ function! cleave#place_right_paragraphs_at_lines(target_line_numbers)
     return actual_positions
 endfunction
 
+function! cleave#align_right_to_left_paragraphs()
+    " Aligns right buffer paragraphs to match left buffer paragraph positions
+    " Gets paragraph line numbers from left buffer text properties and places
+    " right buffer paragraphs at those positions
+    
+    let left_para_lines = cleave#get_left_buffer_paragraph_lines()
+    if empty(left_para_lines)
+        echomsg "Cleave: No paragraph positions found in left buffer"
+        return
+    endif
+    
+    let actual_positions = cleave#place_right_paragraphs_at_lines(left_para_lines)
+    echomsg "Cleave: Aligned right buffer paragraphs at lines: " . string(actual_positions)
+endfunction
+
 function! cleave#wrap_paragraph(paragraph_lines, width)
     " Join paragraph into single string
     let text = join(a:paragraph_lines, ' ')
