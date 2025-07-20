@@ -771,6 +771,112 @@ function! cleave#get_left_buffer_paragraph_lines()
     return para_line_numbers
 endfunction
 
+function! cleave#place_right_paragraphs_at_lines(target_line_numbers)
+    " Places paragraphs from the right buffer at specified line numbers
+    " If a paragraph would overlap with a previously placed paragraph, 
+    " slides it down to maintain one blank line separation
+    " 
+    " Args: target_line_numbers - array of 1-based line numbers where paragraphs should be placed
+    
+    if s:cleave_right_bufnr == -1 || !bufexists(s:cleave_right_bufnr)
+        echoerr "Cleave: Right buffer not found or not valid"
+        return
+    endif
+    
+    if empty(a:target_line_numbers)
+        echomsg "Cleave: No target line numbers provided"
+        return
+    endif
+    
+    " Step 1: Extract current paragraphs from right buffer
+    let current_lines = getbufline(s:cleave_right_bufnr, 1, '$')
+    let paragraphs = []
+    let current_para_lines = []
+    
+    for i in range(len(current_lines))
+        let line = current_lines[i]
+        let trimmed_line = trim(line)
+        let is_paragraph_start = v:false
+        
+        if i == 0 && trimmed_line != ''
+            let is_paragraph_start = v:true
+        elseif i > 0 && trimmed_line != ''
+            " Check if this is a paragraph start - previous line must be empty
+            let prev_right_empty = trim(current_lines[i-1]) == ''
+            
+            if prev_right_empty
+                let is_paragraph_start = v:true
+            endif
+        endif
+        
+        if is_paragraph_start
+            " Save previous paragraph if we have one
+            if !empty(current_para_lines)
+                call add(paragraphs, copy(current_para_lines))
+            endif
+            
+            " Start new paragraph
+            let current_para_lines = [trimmed_line]
+        elseif !empty(current_para_lines) && trimmed_line != ''
+            " Continue current paragraph - only add non-empty lines
+            call add(current_para_lines, trimmed_line)
+        endif
+    endfor
+    
+    " Save final paragraph
+    if !empty(current_para_lines)
+        call add(paragraphs, copy(current_para_lines))
+    endif
+    
+    " Step 2: Place paragraphs at target positions with conflict resolution
+    let new_buffer_lines = []
+    let current_line_num = 1
+    let actual_positions = []
+    
+    for i in range(len(paragraphs))
+        " Get target line for this paragraph (use 1 if array is shorter)
+        let target_line = (i < len(a:target_line_numbers)) ? a:target_line_numbers[i] : 1
+        let paragraph = paragraphs[i]
+        let para_length = len(paragraph)
+        
+        " Determine actual placement position
+        let actual_position = max([target_line, current_line_num])
+        
+        " Add empty lines to reach the actual position
+        while current_line_num < actual_position
+            call add(new_buffer_lines, '')
+            let current_line_num += 1
+        endwhile
+        
+        " Record where this paragraph actually starts
+        call add(actual_positions, actual_position)
+        
+        " Add the paragraph lines
+        for para_line in paragraph
+            call add(new_buffer_lines, para_line)
+            let current_line_num += 1
+        endfor
+        
+        " Ensure at least one blank line after paragraph (except for last paragraph)
+        if i < len(paragraphs) - 1
+            call add(new_buffer_lines, '')
+            let current_line_num += 1
+        endif
+    endfor
+    
+    " Step 3: Update the right buffer
+    call setbufline(s:cleave_right_bufnr, 1, new_buffer_lines)
+    
+    " Remove any extra lines beyond our new content
+    let total_lines = len(getbufline(s:cleave_right_bufnr, 1, '$'))
+    if total_lines > len(new_buffer_lines)
+        call deletebufline(s:cleave_right_bufnr, len(new_buffer_lines) + 1, total_lines)
+    endif
+    
+    echomsg "Cleave: Placed " . len(paragraphs) . " paragraphs at target positions"
+    return actual_positions
+endfunction
+
 function! cleave#wrap_paragraph(paragraph_lines, width)
     " Join paragraph into single string
     let text = join(a:paragraph_lines, ' ')
