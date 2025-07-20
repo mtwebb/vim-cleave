@@ -352,6 +352,7 @@ endfunction
 function! cleave#reflow_right_buffer(new_width, current_bufnr, left_bufnr, right_bufnr)
     " Dedicated right buffer reflow logic. Assumed called in right buffer
     " Reflows the content to new width attempting to keep existing paragraph
+    " Assumed right paragraphs are in correct position prior to reflowing
     " Start locations. Does not not reference 
     " Step 1: Note line positions of first line in each paragraph in RIGHT buffer
     let current_lines = getline(1, '$')
@@ -691,6 +692,83 @@ function! cleave#set_textwidth_to_longest_line()
     execute 'setlocal textwidth=' . max_length
     
     return max_length
+endfunction
+
+function! cleave#get_right_buffer_paragraph_lines()
+    " Returns array of line numbers (1-based) where paragraphs start in the right buffer
+    " Uses script-local variable to identify the right buffer
+    if s:cleave_right_bufnr == -1 || !bufexists(s:cleave_right_bufnr)
+        echoerr "Cleave: Right buffer not found or not valid"
+        return []
+    endif
+    
+    let current_lines = getbufline(s:cleave_right_bufnr, 1, '$')
+    let para_line_numbers = []
+    
+    for i in range(len(current_lines))
+        let line = current_lines[i]
+        let trimmed_line = trim(line)
+        let is_paragraph_start = v:false
+        
+        if i == 0 && trimmed_line != ''
+            let is_paragraph_start = v:true
+        elseif i > 0 && trimmed_line != ''
+            " Check if this is a paragraph start - previous line must be empty
+            let prev_right_empty = trim(current_lines[i-1]) == ''
+            
+            if prev_right_empty
+                let is_paragraph_start = v:true
+            endif
+        endif
+        
+        if is_paragraph_start
+            call add(para_line_numbers, i + 1)  " Convert to 1-based line numbers
+        endif
+    endfor
+    
+    return para_line_numbers
+endfunction
+
+function! cleave#get_left_buffer_paragraph_lines()
+    " Returns array of line numbers (1-based) that have cleave_paragraph_start text property in left buffer
+    " Uses script-local variable to identify the left buffer
+    " If no text properties exist, creates them by calling cleave#set_text_properties()
+    
+    if s:cleave_left_bufnr == -1 || !bufexists(s:cleave_left_bufnr)
+        echoerr "Cleave: Left buffer not found or not valid"
+        return []
+    endif
+    
+    " Check if text properties are supported
+    if !has('textprop')
+        echomsg "Cleave: Text properties not supported in this Vim version"
+        return []
+    endif
+    
+    let prop_type = 'cleave_paragraph_start'
+    let para_line_numbers = []
+    
+    " Get all text properties of the specified type from the left buffer
+    let props = prop_list(1, {'bufnr': s:cleave_left_bufnr, 'types': [prop_type], 'end_lnum': -1})
+    
+    " Extract line numbers from properties
+    for prop in props
+        call add(para_line_numbers, prop.lnum)
+    endfor
+    
+    " If no properties found, create them
+    if empty(para_line_numbers)
+        echomsg "Cleave: No text properties found, creating them..."
+        call cleave#set_text_properties()
+        
+        " Try again to get the properties
+        let props = prop_list(1, {'bufnr': s:cleave_left_bufnr, 'types': [prop_type], 'end_lnum': -1})
+        for prop in props
+            call add(para_line_numbers, prop.lnum)
+        endfor
+    endif
+    
+    return para_line_numbers
 endfunction
 
 function! cleave#wrap_paragraph(paragraph_lines, width)
