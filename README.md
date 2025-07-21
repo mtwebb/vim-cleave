@@ -1,14 +1,16 @@
 # vim-cleave
 
-Vim-cleave is a plugin that splits a buffer's content vertically at a specified column, creating separate left and right buffers while maintaining spatial positioning. It's particularly useful for editing files with distinct left and right content, such as diffs, documentation with annotations, or formatted text.
+Vim-cleave is a plugin that splits a buffer's content vertically at a specified column, creating separate left and right buffers while maintaining spatial positioning. It was developed as a way to bring the wonder of margin notes to plain text files. 
+
+Quick demo:
+<a href="https://asciinema.org/a/IIWD2CA3ZwNII12hTd5U3v7u1" target="_blank"><img src="https://asciinema.org/a/IIWD2CA3ZwNII12hTd5U3v7u1.svg" /></a>
 
 ## Features
 
-- **Buffer Splitting**: Split any buffer vertically at a specified column
-- **Text Reflow**: Reflow text in either buffer while maintaining paragraph alignment
-
-- **Spatial Preservation**: Maintains cursor position and scroll synchronization
-- **Paragraph Alignment**: Intelligently preserves paragraph boundaries during reflow
+- **Buffer Splitting**: Split any buffer vertically at a specified column or use cursor position
+- **Text Reflow**: Reflow text in either buffer while maintaining paragraph alignment, so can change the layout of of each column based on the screen real estate you have. 
+- **Spatial Preservation**: Maintains cursor position and scroll synchronization.  Even when split, acts like a single document. 
+- **Paragraph Alignment**: Intelligently preserves paragraph boundaries during reflow so if you change the main text the margin notes will stay aligned with the content they were added next to. 
 
 ## Installation
 
