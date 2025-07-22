@@ -1,5 +1,7 @@
 # vim-cleave
-
+<p align="center">
+  <img src="doc/screenshot.webp" alt="Example session" width="800">
+</p>
 Vim-cleave is a plugin that splits a buffer's content vertically at a specified column, creating separate left and right buffers while maintaining spatial positioning. It was developed as a way to bring the wonder of margin notes to plain text files. 
 
 Quick demo:
