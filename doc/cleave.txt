@@ -65,11 +65,11 @@ COMMANDS                                     *cleave-commands*
 
     Key features:
     - Automatically detects which cleaved buffer has focus
+    - Handles both left and right buffer reflow with dedicated algorithms
     - Preserves paragraph alignment between buffers
     - Maintains correspondence of paragraph positions across buffers
     - Updates window sizing automatically when reflowing the left buffer
     - Uses content-based matching to track paragraph positions
-    - Handles both left and right buffer reflow with dedicated algorithms
     - Preserves original paragraph positioning when possible
     - Removes trailing whitespace during processing
     
@@ -109,7 +109,6 @@ COMMANDS                                     *cleave-commands*
     - Handles paragraph overlap conflicts by sliding paragraphs down
     - Maintains proper spacing between paragraphs
     - Provides feedback on actual paragraph placement
-    - Works independently of current buffer focus
 
     The command performs the following steps:
     1. Retrieves paragraph start positions from left buffer text properties
@@ -122,8 +121,52 @@ COMMANDS                                     *cleave-commands*
     Example: >
         :CleaveAlign
 <
-    This realigns the right buffer paragraphs to match the left buffer's
-    paragraph structure.
+    This realigns the right buffer paragraphs to match the text property
+    anchors placed thoughout the left buffer.
+
+*:CleaveSetProps*                            *cleave-setprops*
+    Creates or updates text properties that mark paragraph start positions
+    in the left buffer. These text properties serve as anchors for paragraph
+    alignment operations and are used by other cleave commands.
+    
+    This function is available but not to be manually called in regular use
+    as it is called as needed by other functions. 
+
+    For each paragraph in the right buffer, the first word in the
+    corresponding line of the left buffer is wrapped with a text property
+    to serve as an anchor. If that line is empty, a zero width property
+    is added to the first column.  
+
+    Removes existing properties before creating new ones
+    Creates 'cleave_paragraph_start' text properties 
+
+    Text properties created by this command are used by:
+    - `:CleaveAlign` for paragraph positioning
+    - `:CleaveReflow` for maintaining paragraph correspondence
+    - `:CleaveToggleTextAnchorVis` for visual feedback
+
+    Example: >
+        :CleaveSetProps
+<
+    This creates text property anchors at all paragraph start positions
+    in the current left buffer.
+
+*:CleaveToggleTextAnchorVis*                 *cleave-toggle-anchors*
+   
+    Toggles the visual highlighting of paragraph start text properties between
+    visible and invisible states. Intended for debugging to show the text 
+    anchors in left buffer where notes in the right buffer will be aligned
+    (the top line of each paragraph in right buffer will align with anchor in
+    the left buffer). Note it is possible to have a text anchor on an empty 
+    line. Those anchors will not be highlighted with this command. 
+    
+    Toggles between 'Normal' (invisible) and 'MatchParen' (visible) highlights
+
+    Example: >
+        :CleaveToggleTextAnchorVis
+<
+    This toggles paragraph anchor visibility, making it easy to see where
+    paragraph alignment points are located in the left buffer.
 
 ==============================================================================
 OPTIONS                                      *cleave-options*
@@ -144,9 +187,6 @@ OPTIONS                                      *cleave-options*
 EXAMPLES                                     *cleave-examples*
 
 Basic workflow: >
-    " Open a file with content to split
-    :edit myfile.txt
-    
     " Position cursor at column 40 and split
     40|
     :CleaveAtCursor
@@ -157,22 +197,14 @@ Basic workflow: >
     " Reflow the left buffer to 60 characters
     :CleaveReflow 60
     
-    " Realign paragraphs if needed
+    " Realign paragraphs after changing left buffer
     :CleaveAlign
     
-    " Join the buffers back together
+    " Rejoin the left and right buffers back together
     :CleaveJoin
     
     " Or restore original buffer
     :CleaveUndo
-<
-
-Use cases:
-- Documentation editing with side comments
-- Code review with annotations
-- Working with diff files
-- Editing fixed-width data formats
-- Formatting text with specific layouts
 
 ==============================================================================
 REQUIREMENTS                                 *cleave-requirements*
