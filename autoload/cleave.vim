@@ -65,6 +65,10 @@ function! s:clear_cleave_buffers()
 endfunction
 
 function! cleave#split_buffer(bufnr, ...)
+    if getbufvar(a:bufnr, '&modified')
+        echoerr "Cleave: Buffer has unsaved changes. Please :write before cleaving."
+        return
+    endif
     " 1. Determine Cleave Column
     let cleave_col = 0
     if a:0 > 0
