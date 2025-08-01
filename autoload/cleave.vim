@@ -247,7 +247,7 @@ function! cleave#join_buffers()
             let left_textwidth = 80  " Default fallback
         endif
     endif
-    let cleave_column = left_textwidth + g:cleave_gutter + 1
+    let cleave_column = str2nr(left_textwidth) + g:cleave_gutter + 1
 
     " Combine the content
     let combined_lines = []
@@ -258,7 +258,7 @@ function! cleave#join_buffers()
         let right_line = (i < len(right_lines)) ? right_lines[i] : ''
         
         " Calculate padding needed to reach cleave_column
-        let left_len = len(left_line)
+        let left_len = strdisplaywidth(left_line)
         let padding_needed = cleave_column - 1 - left_len
         let padding = padding_needed > 0 ? repeat(' ', padding_needed) : ''
         
