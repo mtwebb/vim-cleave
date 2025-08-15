@@ -5,6 +5,143 @@ if !exists('g:cleave_gutter')
     let g:cleave_gutter = 3
 endif
 
+" ============================================================================
+" Virtual Column Utility Functions
+" ============================================================================
+
+" Convert virtual column position to byte position in a string
+" Args: string - the string to analyze
+"       vcol - virtual column position (1-based)
+" Returns: byte position (0-based) or -1 if vcol is beyond string
+function! cleave#vcol_to_byte(string, vcol)
+    if a:vcol <= 0
+        return 0
+    endif
+    
+    let byte_pos = 0
+    let current_vcol = 1
+    let string_len = len(a:string)
+    
+    while byte_pos < string_len && current_vcol < a:vcol
+        let char = a:string[byte_pos]
+        let char_byte_len = len(char)
+        
+        " Handle multi-byte characters by getting the full character
+        if char_byte_len > 1 || char2nr(char) > 127
+            " Get the full multi-byte character
+            let char = strpart(a:string, byte_pos, 1)
+            let char_byte_len = len(char)
+        endif
+        
+        " Calculate display width of this character
+        if char == "\t"
+            " Tab width depends on current column position
+            let tab_width = &tabstop - ((current_vcol - 1) % &tabstop)
+            let current_vcol += tab_width
+        else
+            let char_display_width = strdisplaywidth(char)
+            let current_vcol += char_display_width
+        endif
+        
+        " Move to next character
+        let byte_pos += char_byte_len
+    endwhile
+    
+    " If we've reached or exceeded the target vcol, return current byte position
+    " If vcol is beyond string, return -1
+    if current_vcol >= a:vcol
+        return byte_pos
+    else
+        return -1
+    endif
+endfunction
+
+" Convert byte position to virtual column position
+" Args: string - the string to analyze
+"       byte_pos - byte position (0-based)
+" Returns: virtual column position (1-based)
+function! cleave#byte_to_vcol(string, byte_pos)
+    if a:byte_pos <= 0
+        return 1
+    endif
+    
+    let string_len = len(a:string)
+    let target_byte_pos = min([a:byte_pos, string_len])
+    
+    let current_byte = 0
+    let current_vcol = 1
+    
+    while current_byte < target_byte_pos
+        let char = a:string[current_byte]
+        let char_byte_len = len(char)
+        
+        " Handle multi-byte characters by getting the full character
+        if char_byte_len > 1 || char2nr(char) > 127
+            " Get the full multi-byte character
+            let char = strpart(a:string, current_byte, 1)
+            let char_byte_len = len(char)
+        endif
+        
+        " Don't go past our target byte position
+        if current_byte + char_byte_len > target_byte_pos
+            break
+        endif
+        
+        " Calculate display width of this character
+        if char == "\t"
+            " Tab width depends on current column position
+            let tab_width = &tabstop - ((current_vcol - 1) % &tabstop)
+            let current_vcol += tab_width
+        else
+            let char_display_width = strdisplaywidth(char)
+            let current_vcol += char_display_width
+        endif
+        
+        " Move to next character
+        let current_byte += char_byte_len
+    endwhile
+    
+    return current_vcol
+endfunction
+
+" Extract substring based on virtual column positions
+" Args: string - the string to split
+"       start_vcol - starting virtual column (1-based, inclusive)
+"       end_vcol - ending virtual column (1-based, exclusive) or -1 for end of string
+" Returns: substring based on virtual column positions
+function! cleave#virtual_strpart(string, start_vcol, ...)
+    let end_vcol = a:0 > 0 ? a:1 : -1
+    
+    " Handle edge cases
+    if a:start_vcol <= 0
+        let start_vcol = 1
+    else
+        let start_vcol = a:start_vcol
+    endif
+    
+    " Convert virtual columns to byte positions
+    let start_byte = cleave#vcol_to_byte(a:string, start_vcol)
+    if start_byte == -1
+        " Start position is beyond string
+        return ''
+    endif
+    
+    if end_vcol <= 0
+        " Extract from start_vcol to end of string
+        return strpart(a:string, start_byte)
+    else
+        let end_byte = cleave#vcol_to_byte(a:string, end_vcol)
+        if end_byte == -1
+            " End position is beyond string, extract to end
+            return strpart(a:string, start_byte)
+        else
+            " Extract substring between byte positions
+            let length = end_byte - start_byte
+            return strpart(a:string, start_byte, length)
+        endif
+    endif
+endfunction
+
 " Script-local variables to store buffer numbers
 let s:cleave_original_bufnr = -1
 let s:cleave_left_bufnr = -1
