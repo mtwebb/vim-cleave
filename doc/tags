@@ -1,6 +1,10 @@
+:CleaveAlign	cleave.txt	/*:CleaveAlign*
 :CleaveAtCursor	cleave.txt	/*:CleaveAtCursor*
 :CleaveJoin	cleave.txt	/*:CleaveJoin*
+:CleaveSetProps	cleave.txt	/*:CleaveSetProps*
+:CleaveToggleTextAnchorVis	cleave.txt	/*:CleaveToggleTextAnchorVis*
 :CleaveUndo	cleave.txt	/*:CleaveUndo*
+cleave-align	cleave.txt	/*cleave-align*
 cleave-commands	cleave.txt	/*cleave-commands*
 cleave-contents	cleave.txt	/*cleave-contents*
 cleave-examples	cleave.txt	/*cleave-examples*
@@ -8,5 +12,7 @@ cleave-introduction	cleave.txt	/*cleave-introduction*
 cleave-options	cleave.txt	/*cleave-options*
 cleave-reflow	cleave.txt	/*cleave-reflow*
 cleave-requirements	cleave.txt	/*cleave-requirements*
+cleave-setprops	cleave.txt	/*cleave-setprops*
+cleave-toggle-anchors	cleave.txt	/*cleave-toggle-anchors*
 cleave.txt	cleave.txt	/*cleave.txt*
 g:cleave_gutter	cleave.txt	/*g:cleave_gutter*
