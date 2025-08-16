@@ -20,31 +20,26 @@ function! cleave#vcol_to_byte(string, vcol)
     
     let byte_pos = 0
     let current_vcol = 1
-    let string_len = len(a:string)
+    let char_idx = 0
+    let string_char_len = strchars(a:string)
     
-    while byte_pos < string_len && current_vcol < a:vcol
-        let char = a:string[byte_pos]
-        let char_byte_len = len(char)
-        
-        " Handle multi-byte characters by getting the full character
-        if char_byte_len > 1 || char2nr(char) > 127
-            " Get the full multi-byte character
-            let char = strpart(a:string, byte_pos, 1)
-            let char_byte_len = len(char)
-        endif
+    while char_idx < string_char_len && current_vcol < a:vcol
+        " Get character at current character index
+        let char_str = strcharpart(a:string, char_idx, 1)
         
         " Calculate display width of this character
-        if char == "\t"
+        if char_str == "\t"
             " Tab width depends on current column position
             let tab_width = &tabstop - ((current_vcol - 1) % &tabstop)
             let current_vcol += tab_width
         else
-            let char_display_width = strdisplaywidth(char)
+            let char_display_width = strdisplaywidth(char_str)
             let current_vcol += char_display_width
         endif
         
         " Move to next character
-        let byte_pos += char_byte_len
+        let char_idx += 1
+        let byte_pos = byteidx(a:string, char_idx)
     endwhile
     
     " If we've reached or exceeded the target vcol, return current byte position
@@ -68,37 +63,28 @@ function! cleave#byte_to_vcol(string, byte_pos)
     let string_len = len(a:string)
     let target_byte_pos = min([a:byte_pos, string_len])
     
-    let current_byte = 0
-    let current_vcol = 1
+    " Convert byte position to character index
+    let target_char_idx = charidx(a:string, target_byte_pos)
     
-    while current_byte < target_byte_pos
-        let char = a:string[current_byte]
-        let char_byte_len = len(char)
-        
-        " Handle multi-byte characters by getting the full character
-        if char_byte_len > 1 || char2nr(char) > 127
-            " Get the full multi-byte character
-            let char = strpart(a:string, current_byte, 1)
-            let char_byte_len = len(char)
-        endif
-        
-        " Don't go past our target byte position
-        if current_byte + char_byte_len > target_byte_pos
-            break
-        endif
+    let current_vcol = 1
+    let char_idx = 0
+    
+    while char_idx < target_char_idx
+        " Get character at current character index
+        let char_str = strcharpart(a:string, char_idx, 1)
         
         " Calculate display width of this character
-        if char == "\t"
+        if char_str == "\t"
             " Tab width depends on current column position
             let tab_width = &tabstop - ((current_vcol - 1) % &tabstop)
             let current_vcol += tab_width
         else
-            let char_display_width = strdisplaywidth(char)
+            let char_display_width = strdisplaywidth(char_str)
             let current_vcol += char_display_width
         endif
         
         " Move to next character
-        let current_byte += char_byte_len
+        let char_idx += 1
     endwhile
     
     return current_vcol
@@ -209,9 +195,11 @@ function! cleave#split_buffer(bufnr, ...)
     " 1. Determine Cleave Column
     let cleave_col = 0
     if a:0 > 0
+        " Parameter is interpreted as virtual column position
         let cleave_col = a:1
     else
-        let cleave_col = col('.')
+        " Use virtual column position of cursor
+        let cleave_col = virtcol('.')
     endif
 
     if cleave_col == 1
@@ -262,8 +250,9 @@ function! cleave#split_content(lines, cleave_col)
     let split_col = a:cleave_col
 
     for line in a:lines
-        let left_part = strpart(line, 0, split_col - 1)
-        let right_part = strpart(line, split_col - 1)
+        " Use virtual column splitting instead of byte-based splitting
+        let left_part = cleave#virtual_strpart(line, 1, split_col)
+        let right_part = cleave#virtual_strpart(line, split_col)
         call add(left_lines, left_part)
         call add(right_lines, right_part)
     endfor
@@ -304,7 +293,11 @@ function! cleave#setup_windows(cleave_col, left_bufnr, right_bufnr, original_win
     vsplit
     
     execute 'buffer' a:left_bufnr
-    execute 'vertical resize ' . (a:cleave_col - 2 + a:original_foldcolumn)
+    " Calculate left window width using virtual column position
+    " cleave_col is now a virtual column, so this accounts for display width
+    " Subtract 2 to account for the split column and add foldcolumn width
+    let left_window_width = a:cleave_col - 2 + a:original_foldcolumn
+    execute 'vertical resize ' . left_window_width
     call cursor(a:original_cursor[1], a:original_cursor[2])
     set scrollbind
 
@@ -366,8 +359,11 @@ function! cleave#join_buffers()
     endif
 
     " Get cleave column from buffer variables (still needed for joining logic)
+    "XXX why current? should get from left.
+    "cleave col is missing gutter offset
     let current_bufnr = bufnr('%')
     let cleave_col = getbufvar(current_bufnr, 'cleave_col', -1)
+    echomsg current_bufnr . "cleave_col:" . cleave_col
     if cleave_col == -1
         echoerr "Cleave: Missing cleave column information."
         return
@@ -377,18 +373,10 @@ function! cleave#join_buffers()
     let left_lines = getbufline(left_bufnr, 1, '$')
     let right_lines = getbufline(right_bufnr, 1, '$')
 
-    " Calculate cleave_column as textwidth of LEFT buffer + g:cleave_gutter + 1
-    let left_textwidth = getbufvar(left_bufnr, '&textwidth', 0)
-    if left_textwidth == 0
-        " If textwidth is not set, try to get it from the window
-        let left_winid = get(win_findbuf(left_bufnr), 0, -1)
-        if left_winid != -1
-            let left_textwidth = getwinvar(left_winid, '&textwidth', 80)
-        else
-            let left_textwidth = 80  " Default fallback
-        endif
-    endif
-    let cleave_column = str2nr(left_textwidth) + g:cleave_gutter + 1
+    " Use the original cleave_col value for consistent virtual column alignment
+    " This ensures that the right content starts at the same virtual column position
+    " where the original split occurred, accounting for display width properly
+    let cleave_column = cleave_col
 
     " Combine the content
     let combined_lines = []
@@ -398,12 +386,20 @@ function! cleave#join_buffers()
         let left_line = (i < len(left_lines)) ? left_lines[i] : ''
         let right_line = (i < len(right_lines)) ? right_lines[i] : ''
         
-        " Calculate padding needed to reach cleave_column
-        let left_len = strdisplaywidth(left_line)
-        let padding_needed = cleave_column - 1 - left_len
-        let padding = padding_needed > 0 ? repeat(' ', padding_needed) : ''
+        " Only add padding if there's content in the right part
+        " This prevents adding unnecessary spaces to lines that were originally shorter than cleave_column
+        if empty(right_line)
+            " No right content, just use the left line as-is
+            let combined_line = left_line
+        else
+            " Calculate padding needed to reach cleave_column
+            let left_len = strdisplaywidth(left_line)
+            let padding_needed = cleave_column - 1 - left_len
+            let padding = padding_needed > 0 ? repeat(' ', padding_needed) : ''
+            
+            let combined_line = left_line . padding . right_line
+        endif
         
-        let combined_line = left_line . padding . right_line
         call add(combined_lines, combined_line)
     endfor
 
@@ -420,7 +416,14 @@ function! cleave#join_buffers()
     call setbufline(original_bufnr, 1, combined_lines)
 
     " Set textwidth of joined buffer to match LEFT buffer's textwidth
-    call setbufvar(original_bufnr, '&textwidth', left_textwidth)
+    let left_textwidth = getbufvar(left_bufnr, '&textwidth', 0)
+    if left_textwidth > 0
+        call setbufvar(original_bufnr, '&textwidth', left_textwidth)
+    endif
+    
+    " Set foldcolumn of joined buffer to match LEFT buffer's foldcolumn
+    let left_foldcolumn = getbufvar(left_bufnr, '&foldcolumn', 0)
+    call setbufvar(original_bufnr, '&foldcolumn', left_foldcolumn)
 
     " Find the windows associated with the buffers
     let left_win_id = get(win_findbuf(left_bufnr), 0, -1)
@@ -770,7 +773,8 @@ function! cleave#reflow_left_buffer(new_width, current_bufnr, left_bufnr, right_
     call cleave#restore_paragraph_alignment(a:right_bufnr, right_lines, updated_para_line_numbers)
     
     " Update window sizing for left buffer reflow
-    let new_cleave_col = a:new_width + 1
+    " XXX this needs gutter width added
+    let new_cleave_col = a:new_width + g:cleave_gutter + 1
     call setbufvar(a:current_bufnr, 'cleave_col', new_cleave_col)
     call setbufvar(a:right_bufnr, 'cleave_col', new_cleave_col)
     
@@ -815,22 +819,22 @@ function! cleave#reflow_text(lines, width)
 endfunction
 
 function! cleave#set_textwidth_to_longest_line()
-    " Set textwidth option to the length of the longest line in the current buffer
-    " Ignores trailing whitespace when calculating line length
+    " Set textwidth option to the display width of the longest line in the current buffer
+    " Ignores trailing whitespace when calculating display width
     let max_length = 0
     let line_count = line('$')
     
     for line_num in range(1, line_count)
         let line_text = getline(line_num)
-        " Remove trailing whitespace before calculating length
+        " Remove trailing whitespace before calculating display width
         let trimmed_line = substitute(line_text, '\s\+$', '', '')
-        let line_length = len(trimmed_line)
+        let line_length = strdisplaywidth(trimmed_line)
         if line_length > max_length
             let max_length = line_length
         endif
     endfor
     
-    " Set textwidth to the maximum line length found
+    " Set textwidth to the maximum display width found
     execute 'setlocal textwidth=' . max_length
     
     return max_length
@@ -1111,7 +1115,8 @@ function! cleave#wrap_paragraph(paragraph_lines, width)
     for word in words
         let test_line = empty(current_line) ? word : current_line . ' ' . word
         
-        if len(test_line) <= a:width
+        " Use display width instead of byte length for proper multi-byte character handling
+        if strdisplaywidth(test_line) <= a:width
             let current_line = test_line
         else
             if !empty(current_line)
@@ -1323,11 +1328,14 @@ function! cleave#set_text_properties()
             let left_line = left_lines[line_num - 1]  " Convert to 0-based for array access
             if trim(left_line) != ''
                 " Add text property to the first word of the line
-                let first_word_end = match(left_line, '\S\+\zs')
-                if first_word_end > 0
+                " Extract the first word and calculate its proper character length
+                let first_word = matchstr(trim(left_line), '\S\+')
+                if !empty(first_word)
+                    " Calculate the character length (not byte length) of the first word
+                    let first_word_char_len = strchars(first_word)
                     call prop_add(line_num, 1, {
                         \ 'type': prop_type,
-                        \ 'length': first_word_end,
+                        \ 'length': first_word_char_len,
                         \ 'bufnr': left_bufnr
                         \ })
                     let properties_added += 1

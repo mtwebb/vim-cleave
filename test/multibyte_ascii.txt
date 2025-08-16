@@ -1,0 +1,16 @@
+vim: cc=40 tw=35
+This is a simple ASCII test file.
+It contains only basic Latin characters.
+Numbers: 0123456789
+Punctuation: .,;:!?'"()[]{}
+Symbols: @#$%^&*+-=_|\/~`
+
+This file serves as a baseline for testing
+that ASCII-only content continues to work
+correctly with virtual column operations.
+
+Short line.
+A much longer line that should definitely exceed the column limit and require wrapping.
+
+Line with    multiple    spaces.
+Line with		tabs		between		words.

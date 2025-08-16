@@ -1,0 +1,23 @@
+vim: cc=40 tw=35
+Unicode test file with various characters.
+Accented letters: café, naïve, résumé
+Greek letters: α β γ δ ε ζ η θ ι κ λ μ
+Mathematical symbols: ∑ ∏ ∫ ∂ ∇ ∞ ≈ ≠
+Currency symbols: € £ ¥ ₹ ₽ ₩ ₪ ₨
+
+Diacritical marks test:
+àáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ
+ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞŸ
+
+Box drawing characters:
+┌─┬─┐
+│ │ │
+├─┼─┤
+│ │ │
+└─┴─┘
+
+Arrow symbols: ← → ↑ ↓ ↔ ↕ ↖ ↗ ↘ ↙
+Bullet points: • ◦ ▪ ▫ ▸ ▹ ◂ ◃
+
+Mixed content line with café and résumé words.
+A longer line with mathematical symbols ∑∏∫ that should wrap properly.

@@ -1,0 +1,58 @@
+
+Testing complete gutter workflow: split → reflow → join...
+
+=== Testing gutter width: 0 ===
+Step 1: Original buffer foldcolumn = 0
+Error detected while processing command line..script /Users/mtwebb/git/mtwebb/vim-cleave/test/run_complete_gutter_test.vim[4]..function TestCompleteGutterWorkflow:
+line   32:
+E37: No write since last change (add ! to override)
+"test_0.left" [Modified][Not edited] 4 lines --25%--
+"test_0.right" [Not edited] --No lines in buffer--
+Step 2: After split, left buffer foldcolumn = 0
+Step 3: After reflow, left buffer foldcolumn = 0
+Step 4: After join, original buffer:
+  foldcolumn = 0 (expected: 0)
+  textwidth = 25 (expected: 25)
+✓ PASS: Gutter preserved through complete workflow
+✓ PASS: Textwidth preserved from reflow
+
+=== Testing gutter width: 2 ===
+Step 1: Original buffer foldcolumn = 2
+E37: No write since last change (add ! to override)
+"test_2.left" [Modified][Not edited] 4 lines --25%--
+"test_2.right" [Not edited] --No lines in buffer--
+Step 2: After split, left buffer foldcolumn = 2
+Step 3: After reflow, left buffer foldcolumn = 2
+Step 4: After join, original buffer:
+  foldcolumn = 2 (expected: 2)
+  textwidth = 25 (expected: 25)
+✓ PASS: Gutter preserved through complete workflow
+✓ PASS: Textwidth preserved from reflow
+
+=== Testing gutter width: 4 ===
+Step 1: Original buffer foldcolumn = 4
+E37: No write since last change (add ! to override)
+"test_4.left" [Modified][Not edited] 4 lines --25%--
+"test_4.right" [Not edited] --No lines in buffer--
+Step 2: After split, left buffer foldcolumn = 4
+Step 3: After reflow, left buffer foldcolumn = 4
+Step 4: After join, original buffer:
+  foldcolumn = 4 (expected: 4)
+  textwidth = 25 (expected: 25)
+✓ PASS: Gutter preserved through complete workflow
+✓ PASS: Textwidth preserved from reflow
+
+=== Testing gutter width: 6 ===
+Step 1: Original buffer foldcolumn = 6
+E37: No write since last change (add ! to override)
+"test_6.left" [Modified][Not edited] 4 lines --25%--
+"test_6.right" [Not edited] --No lines in buffer--
+Step 2: After split, left buffer foldcolumn = 6
+Step 3: After reflow, left buffer foldcolumn = 6
+Step 4: After join, original buffer:
+  foldcolumn = 6 (expected: 6)
+  textwidth = 25 (expected: 25)
+✓ PASS: Gutter preserved through complete workflow
+✓ PASS: Textwidth preserved from reflow
+
+Complete gutter workflow test finished.

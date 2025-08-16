@@ -1,0 +1,14 @@
+
+Testing gutter preservation fix in join_buffers...
+Original buffer foldcolumn: 3
+Error detected while processing command line..script /Users/mtwebb/git/mtwebb/vim-cleave/test/run_gutter_fix_test.vim[4]..function TestGutterFix:
+line   24:
+E37: No write since last change (add ! to override)
+"test.left" [Modified][Not edited] 3 lines --33%--
+"test.right" [Not edited] --No lines in buffer--
+Left buffer foldcolumn: 0
+Right buffer foldcolumn: 0
+Final buffer foldcolumn after join: 3
+Expected foldcolumn: 3
+SUCCESS: Gutter preserved after join!
+Test completed.

@@ -1,0 +1,106 @@
+
+Running gutter maintenance tests...
+==================================
+Testing gutter maintenance after reflow and merge...
+"test_buffer" [Modified][Not edited] 4 lines --25%--
+=== Initial Setup ===
+Original buffer: 1
+Content lines: 4
+
+=== Testing with gutter width: 0 ===
+Set foldcolumn to: 0
+Splitting at column: 20
+Error detected while processing command line..script /Users/mtwebb/git/mtwebb/vim-cleave/test/run_gutter_test.vim[4]..function RunGutterTests[7]..TestGutterReflowMerge:
+line   48:
+E37: No write since last change (add ! to override)
+<est_buffer.left" [Modified][Not edited] 4 lines --25%--
+"test_buffer.right" [Not edited] --No lines in buffer--
+Created left buffer: 1 (foldcolumn: 0)
+Created right buffer: 3 (foldcolumn: 0)
+Left buffer initial state:
+  foldcolumn: 0
+  textwidth: 0
+Reflowing left buffer to width: 30
+Lines before reflow: 4
+Left buffer after reflow:
+  foldcolumn: 0
+  textwidth: 30
+  lines: 4
+PASS: Gutter preserved after reflow (width 0)
+Performing merge...
+Original buffer after merge:
+  foldcolumn: 0
+  textwidth: 30
+  lines: 4
+PASS: Gutter preserved after merge (width 0)
+"test_buffer.left" [New]
+
+=== Testing with gutter width: 3 ===
+Set foldcolumn to: 3
+Splitting at column: 20
+E37: No write since last change (add ! to override)
+<uffer.left" [Modified][Not edited][New] 4 lines --25%--
+"test_buffer.right" [Not edited] --No lines in buffer--
+Created left buffer: 1 (foldcolumn: 0)
+Created right buffer: 5 (foldcolumn: 0)
+Left buffer initial state:
+  foldcolumn: 3
+  textwidth: 0
+Reflowing left buffer to width: 30
+Lines before reflow: 4
+Left buffer after reflow:
+  foldcolumn: 3
+  textwidth: 30
+  lines: 4
+PASS: Gutter preserved after reflow (width 3)
+Performing merge...
+Original buffer after merge:
+  foldcolumn: 3
+  textwidth: 30
+  lines: 4
+PASS: Gutter preserved after merge (width 3)
+"test_buffer.left" [New]
+
+=== Testing with gutter width: 5 ===
+Set foldcolumn to: 5
+Splitting at column: 20
+E37: No write since last change (add ! to override)
+<uffer.left" [Modified][Not edited][New] 4 lines --25%--
+"test_buffer.right" [Not edited] --No lines in buffer--
+Created left buffer: 1 (foldcolumn: 0)
+Created right buffer: 7 (foldcolumn: 0)
+Left buffer initial state:
+  foldcolumn: 5
+  textwidth: 0
+Reflowing left buffer to width: 30
+Lines before reflow: 4
+Left buffer after reflow:
+  foldcolumn: 5
+  textwidth: 30
+  lines: 4
+PASS: Gutter preserved after reflow (width 5)
+Performing merge...
+Original buffer after merge:
+  foldcolumn: 5
+  textwidth: 30
+  lines: 4
+PASS: Gutter preserved after merge (width 5)
+"test_buffer.left" [New]
+
+TestGutterReflowMerge: 6/6 tests passed
+
+Testing gutter with actual Cleave commands...
+Set original foldcolumn to: 4
+Attempting to split buffer at cursor position...
+Error detected while processing command line..script /Users/mtwebb/git/mtwebb/vim-cleave/test/run_gutter_test.vim[4]..function RunGutterTests[10]..TestGutterWithActualCleaveCommands[93]..command line..script /Users/mtwebb/git/mtwebb/vim-cleave/test/run_gutter_test.vim[4]..function RunGutterTests[10]..TestGutterWithActualCleaveCommands[28]..cleave#split_buffer:
+line    2:
+Cleave: Buffer has unsaved changes. Please :write before cleaving.
+Error detected while processing command line:
+E32: No file name
+Type  :qa!  and press <Ent...on all changes and exit Vim
+
+E37: No write since last change
+E162: No write since last change for buffer "[No Name]"
+
+E32: No file name
+Type  :qa!  and press <Ent...on all changes and exit Vim
