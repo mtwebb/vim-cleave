@@ -148,8 +148,6 @@ function! s:teardown_cleave(original_bufnr, left_bufnr, right_bufnr)
     if left_win_id != -1
         call win_gotoid(left_win_id)
     endif
-
-    call s:clear_cleave_buffers()
 endfunction
 
 " ============================================================================
@@ -275,63 +273,23 @@ function! cleave#virtual_strpart(string, start_vcol, ...)
     endif
 endfunction
 
-" Script-local variables to store buffer numbers
-let s:cleave_original_bufnr = -1
-let s:cleave_left_bufnr = -1
-let s:cleave_right_bufnr = -1
-
-" Helper function to validate if stored buffer numbers are still valid
-function! s:validate_cleave_buffers()
-    return s:cleave_original_bufnr != -1 && 
-         \ s:cleave_left_bufnr != -1 && 
-         \ s:cleave_right_bufnr != -1 &&
-         \ bufexists(s:cleave_original_bufnr) &&
-         \ bufexists(s:cleave_left_bufnr) &&
-         \ bufexists(s:cleave_right_bufnr)
-endfunction
-
-" Helper function to get cleave buffer numbers with validation and fallback
-function! s:get_cleave_buffers()
-    " First try to use script-local variables if they're valid
-    if s:validate_cleave_buffers()
-        return [s:cleave_original_bufnr, s:cleave_left_bufnr, s:cleave_right_bufnr]
-    endif
-    
-    " Fallback: search through buffers using the old method
-    let current_bufnr = bufnr('%')
-    let original_bufnr = getbufvar(current_bufnr, 'cleave_original', -1)
-    
-    if original_bufnr == -1
+" Resolve cleave buffer triple from b:cleave dict on the given (or current) buffer
+function! s:resolve_buffers(...)
+    let bufnr = a:0 > 0 ? a:1 : bufnr('%')
+    let info = getbufvar(bufnr, 'cleave', {})
+    if empty(info)
         return [-1, -1, -1]
     endif
-    
-    let left_bufnr = -1
-    let right_bufnr = -1
-    for i in range(1, bufnr("$"))
-        if bufexists(i) && getbufvar(i, 'cleave_original', -1) == original_bufnr
-            if getbufvar(i, 'cleave_side', '') == 'left'
-                let left_bufnr = i
-            elseif getbufvar(i, 'cleave_side', '') == 'right'
-                let right_bufnr = i
-            endif
-        endif
-    endfor
-    
-    " Update script variables if we found valid buffers
-    if original_bufnr != -1 && left_bufnr != -1 && right_bufnr != -1
-        let s:cleave_original_bufnr = original_bufnr
-        let s:cleave_left_bufnr = left_bufnr
-        let s:cleave_right_bufnr = right_bufnr
+    let original = info.original
+    let peer = info.peer
+    if !bufexists(bufnr) || !bufexists(peer)
+        return [-1, -1, -1]
     endif
-    
-    return [original_bufnr, left_bufnr, right_bufnr]
-endfunction
-
-" Helper function to clear script-local variables
-function! s:clear_cleave_buffers()
-    let s:cleave_original_bufnr = -1
-    let s:cleave_left_bufnr = -1
-    let s:cleave_right_bufnr = -1
+    if info.side ==# 'left'
+        return [original, bufnr, peer]
+    else
+        return [original, peer, bufnr]
+    endif
 endfunction
 
 function! cleave#split_buffer(bufnr, ...)
@@ -373,18 +331,13 @@ function! cleave#split_buffer(bufnr, ...)
     " 4. Window Management
     call cleave#setup_windows(cleave_col, left_bufnr, right_bufnr, original_winid, original_cursor, original_foldcolumn)
 
-    " 5. Set script-local variables to store buffer numbers
-    let s:cleave_original_bufnr = original_bufnr
-    let s:cleave_left_bufnr = left_bufnr
-    let s:cleave_right_bufnr = right_bufnr
-
-    " 6. Set buffer variables for potential undo
-    call setbufvar(left_bufnr, 'cleave_original', original_bufnr)
-    call setbufvar(left_bufnr, 'cleave_side', 'left')
-    call setbufvar(left_bufnr, 'cleave_col', cleave_col)
-    call setbufvar(right_bufnr, 'cleave_original', original_bufnr)
-    call setbufvar(right_bufnr, 'cleave_side', 'right')
-    call setbufvar(right_bufnr, 'cleave_col', cleave_col)
+    " 5. Store cleave state on each buffer
+    call setbufvar(left_bufnr, 'cleave', {
+        \ 'original': original_bufnr, 'side': 'left',
+        \ 'peer': right_bufnr, 'col': cleave_col})
+    call setbufvar(right_bufnr, 'cleave', {
+        \ 'original': original_bufnr, 'side': 'right',
+        \ 'peer': left_bufnr, 'col': cleave_col})
 
     " 6. Initialize text properties to show paragraph alignment
     call cleave#set_text_properties()
@@ -455,7 +408,7 @@ function! cleave#setup_windows(cleave_col, left_bufnr, right_bufnr, original_win
 endfunction
 
 function! cleave#undo_cleave()
-    let [original_bufnr, left_bufnr, right_bufnr] = s:get_cleave_buffers()
+    let [original_bufnr, left_bufnr, right_bufnr] = s:resolve_buffers()
 
     if original_bufnr == -1 || left_bufnr == -1 || right_bufnr == -1
         echoerr "Cleave: Not a cleave buffer or buffers not found."
@@ -469,14 +422,14 @@ endfunction
 
 function! cleave#join_buffers()
     " Get buffer numbers using helper function
-    let [original_bufnr, left_bufnr, right_bufnr] = s:get_cleave_buffers()
+    let [original_bufnr, left_bufnr, right_bufnr] = s:resolve_buffers()
 
     if original_bufnr == -1 || left_bufnr == -1 || right_bufnr == -1
         echoerr "Cleave: Not a cleave buffer or buffers not found."
         return
     endif
 
-    let cleave_col = getbufvar(left_bufnr, 'cleave_col', -1)
+    let cleave_col = get(getbufvar(left_bufnr, 'cleave', {}), 'col', -1)
 
     if cleave_col == -1
         echoerr "Cleave: Missing cleave column information."
@@ -533,7 +486,7 @@ endfunction
 
 function! cleave#reflow_buffer(new_width)
     " Get buffer numbers using helper function
-    let [original_bufnr, left_bufnr, right_bufnr] = s:get_cleave_buffers()
+    let [original_bufnr, left_bufnr, right_bufnr] = s:resolve_buffers()
     
     if original_bufnr == -1 || left_bufnr == -1 || right_bufnr == -1
         echoerr "Cleave: Not a cleave buffer or buffers not found."
@@ -545,9 +498,8 @@ function! cleave#reflow_buffer(new_width)
         return
     endif
     
-    " Detect which side the current buffer is
     let current_bufnr = bufnr('%')
-    let current_side = getbufvar(current_bufnr, 'cleave_side', '')
+    let current_side = get(getbufvar(current_bufnr, 'cleave', {}), 'side', '')
     
     if empty(current_side)
         echoerr "Cleave: Current buffer is not a cleave buffer (.left or .right)"
@@ -705,8 +657,14 @@ function! cleave#reflow_left_buffer(new_width, current_bufnr, left_bufnr, right_
 
     " Update window sizing for left buffer reflow
     let new_cleave_col = a:new_width + g:cleave_gutter + 1
-    call setbufvar(a:current_bufnr, 'cleave_col', new_cleave_col)
-    call setbufvar(a:right_bufnr, 'cleave_col', new_cleave_col)
+    let left_info = getbufvar(a:current_bufnr, 'cleave', {})
+    let right_info = getbufvar(a:right_bufnr, 'cleave', {})
+    if !empty(left_info)
+        let left_info.col = new_cleave_col
+    endif
+    if !empty(right_info)
+        let right_info.col = new_cleave_col
+    endif
 
     let left_winid = get(win_findbuf(a:current_bufnr), 0, -1)
     let original_foldcolumn = left_winid != -1 ? getwinvar(left_winid, '&foldcolumn') : 0
@@ -767,25 +725,22 @@ function! cleave#set_textwidth_to_longest_line()
 endfunction
 
 function! cleave#get_right_buffer_paragraph_lines()
-    if s:cleave_right_bufnr == -1 || !bufexists(s:cleave_right_bufnr)
+    let [original_bufnr, left_bufnr, right_bufnr] = s:resolve_buffers()
+    if right_bufnr == -1
         echoerr "Cleave: Right buffer not found or not valid"
         return []
     endif
 
-    return s:para_starts(getbufline(s:cleave_right_bufnr, 1, '$'))
+    return s:para_starts(getbufline(right_bufnr, 1, '$'))
 endfunction
 
 function! cleave#get_left_buffer_paragraph_lines()
-    " Returns array of line numbers (1-based) that have cleave_paragraph_start text property in left buffer
-    " Uses script-local variable to identify the left buffer
-    " If no text properties exist, creates them by calling cleave#set_text_properties()
-    
-    if s:cleave_left_bufnr == -1 || !bufexists(s:cleave_left_bufnr)
+    let [original_bufnr, left_bufnr, right_bufnr] = s:resolve_buffers()
+    if left_bufnr == -1
         echoerr "Cleave: Left buffer not found or not valid"
         return []
     endif
     
-    " Check if text properties are supported
     if !has('textprop')
         echomsg "Cleave: Text properties not supported in this Vim version"
         return []
@@ -794,7 +749,7 @@ function! cleave#get_left_buffer_paragraph_lines()
     let prop_type = 'cleave_paragraph_start'
     let para_starts = []
     
-    let props = prop_list(1, {'bufnr': s:cleave_left_bufnr, 'types': [prop_type], 'end_lnum': -1})
+    let props = prop_list(1, {'bufnr': left_bufnr, 'types': [prop_type], 'end_lnum': -1})
     
     for prop in props
         call add(para_starts, prop.lnum)
@@ -803,7 +758,7 @@ function! cleave#get_left_buffer_paragraph_lines()
     if empty(para_starts)
         call cleave#set_text_properties()
         
-        let props = prop_list(1, {'bufnr': s:cleave_left_bufnr, 'types': [prop_type], 'end_lnum': -1})
+        let props = prop_list(1, {'bufnr': left_bufnr, 'types': [prop_type], 'end_lnum': -1})
         for prop in props
             call add(para_starts, prop.lnum)
         endfor
@@ -843,7 +798,7 @@ function! cleave#toggle_paragraph_highlight()
     call prop_type_change(prop_type, {'highlight': new_group})
     
     " Force immediate visual update by temporarily moving cursor in each cleave window
-    let [original_bufnr, left_bufnr, right_bufnr] = s:get_cleave_buffers()
+    let [original_bufnr, left_bufnr, right_bufnr] = s:resolve_buffers()
     let current_winid = win_getid()
     
     " Update left buffer windows
@@ -886,7 +841,8 @@ function! cleave#place_right_paragraphs_at_lines(target_line_numbers)
     " 
     " Args: target_line_numbers - array of 1-based line numbers where paragraphs should be placed
     
-    if s:cleave_right_bufnr == -1 || !bufexists(s:cleave_right_bufnr)
+    let [original_bufnr, left_bufnr, right_bufnr] = s:resolve_buffers()
+    if right_bufnr == -1
         echoerr "Cleave: Right buffer not found or not valid"
         return
     endif
@@ -896,8 +852,7 @@ function! cleave#place_right_paragraphs_at_lines(target_line_numbers)
         return
     endif
     
-    " Step 1: Extract current paragraphs from right buffer
-    let current_lines = getbufline(s:cleave_right_bufnr, 1, '$')
+    let current_lines = getbufline(right_bufnr, 1, '$')
     let extracted = s:extract_paragraphs(current_lines)
     let paragraphs = map(copy(extracted), 'v:val.content')
 
@@ -937,8 +892,7 @@ function! cleave#place_right_paragraphs_at_lines(target_line_numbers)
         endif
     endfor
     
-    " Step 3: Update the right buffer
-    call s:replace_buffer_lines(s:cleave_right_bufnr, new_buffer_lines)
+    call s:replace_buffer_lines(right_bufnr, new_buffer_lines)
     return actual_positions
 endfunction
 
@@ -993,20 +947,10 @@ function! cleave#restore_paragraph_alignment(right_bufnr, original_right_lines, 
     " Clean up trailing whitespace from all lines
     let cleaned_lines = map(copy(a:original_right_lines), 'substitute(v:val, "\\s\\+$", "", "")')
 
-    " Get left buffer lines for context
     let left_lines = []
-    if s:validate_cleave_buffers() && s:cleave_right_bufnr == a:right_bufnr
-        let left_lines = getbufline(s:cleave_left_bufnr, 1, '$')
-    else
-        let original_bufnr = getbufvar(a:right_bufnr, 'cleave_original', -1)
-        if original_bufnr != -1
-            for i in range(1, bufnr("$"))
-                if bufexists(i) && getbufvar(i, 'cleave_original', -1) == original_bufnr && getbufvar(i, 'cleave_side', '') == 'left'
-                    let left_lines = getbufline(i, 1, '$')
-                    break
-                endif
-            endfor
-        endif
+    let [original_bufnr, left_bufnr, right_bufnr] = s:resolve_buffers(a:right_bufnr)
+    if left_bufnr != -1
+        let left_lines = getbufline(left_bufnr, 1, '$')
     endif
 
     " Step 1: Extract paragraphs and assign target line numbers
@@ -1041,7 +985,7 @@ endfunction
 
 function! cleave#set_text_properties()
     " Get buffer numbers using helper function
-    let [original_bufnr, left_bufnr, right_bufnr] = s:get_cleave_buffers()
+    let [original_bufnr, left_bufnr, right_bufnr] = s:resolve_buffers()
     
     if original_bufnr == -1 || left_bufnr == -1 || right_bufnr == -1
         echoerr "Cleave: Not a cleave buffer or buffers not found."
