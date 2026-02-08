@@ -6,6 +6,153 @@ if !exists('g:cleave_gutter')
 endif
 
 " ============================================================================
+" Paragraph Detection Helpers
+" ============================================================================
+
+" Simple paragraph start: non-empty line that is first or follows an empty line
+function! s:is_para_start(lines, idx)
+    if trim(a:lines[a:idx]) ==# ''
+        return v:false
+    endif
+    return a:idx == 0 || trim(a:lines[a:idx - 1]) ==# ''
+endfunction
+
+" Paragraph start with left-buffer context: also triggers when the
+" corresponding left-buffer line is empty/whitespace
+function! s:is_para_start_ctx(lines, left_lines, idx)
+    if trim(a:lines[a:idx]) ==# ''
+        return v:false
+    endif
+    if a:idx == 0
+        return v:true
+    endif
+    if trim(a:lines[a:idx - 1]) ==# ''
+        return v:true
+    endif
+    let left_empty = (a:idx - 1 < len(a:left_lines)) ? (trim(a:left_lines[a:idx - 1]) ==# '') : v:true
+    return left_empty
+endfunction
+
+" Return 1-based line numbers of paragraph starts in lines (simple detection)
+function! s:para_starts(lines)
+    let result = []
+    for i in range(len(a:lines))
+        if s:is_para_start(a:lines, i)
+            call add(result, i + 1)
+        endif
+    endfor
+    return result
+endfunction
+
+" Return 1-based line numbers of paragraph starts using left-context detection
+function! s:para_starts_ctx(lines, left_lines)
+    let result = []
+    for i in range(len(a:lines))
+        if s:is_para_start_ctx(a:lines, a:left_lines, i)
+            call add(result, i + 1)
+        endif
+    endfor
+    return result
+endfunction
+
+" Extract paragraphs from lines as a list of {start: N, content: [lines]}
+" Uses simple paragraph detection (prev line empty)
+function! s:extract_paragraphs(lines)
+    let paragraphs = []
+    let current_para = []
+    let current_start = -1
+
+    for i in range(len(a:lines))
+        let trimmed = trim(a:lines[i])
+        if s:is_para_start(a:lines, i)
+            if current_start >= 0 && !empty(current_para)
+                call add(paragraphs, {'start': current_start + 1, 'content': copy(current_para)})
+            endif
+            let current_para = [trimmed]
+            let current_start = i
+        elseif current_start >= 0 && trimmed !=# ''
+            call add(current_para, trimmed)
+        endif
+    endfor
+
+    if current_start >= 0 && !empty(current_para)
+        call add(paragraphs, {'start': current_start + 1, 'content': copy(current_para)})
+    endif
+    return paragraphs
+endfunction
+
+" Extract paragraphs using left-context detection, preserving original lines
+" (not trimmed). Returns list of {start: N, content: [lines]}
+function! s:extract_paragraphs_ctx(lines, left_lines)
+    let paragraphs = []
+    let current_para = []
+    let current_start = -1
+
+    for i in range(len(a:lines))
+        let trimmed = trim(a:lines[i])
+        if s:is_para_start_ctx(a:lines, a:left_lines, i)
+            if current_start >= 0 && !empty(current_para)
+                call add(paragraphs, {'start': current_start + 1, 'content': copy(current_para)})
+            endif
+            let current_para = [a:lines[i]]
+            let current_start = i
+        elseif current_start >= 0 && trimmed !=# ''
+            call add(current_para, a:lines[i])
+        endif
+    endfor
+
+    if current_start >= 0 && !empty(current_para)
+        call add(paragraphs, {'start': current_start + 1, 'content': copy(current_para)})
+    endif
+    return paragraphs
+endfunction
+
+" ============================================================================
+" Buffer / Window Helpers
+" ============================================================================
+
+" Replace all lines in a buffer, removing any excess trailing lines
+function! s:replace_buffer_lines(bufnr, lines)
+    call setbufline(a:bufnr, 1, a:lines)
+    let total = len(getbufline(a:bufnr, 1, '$'))
+    if total > len(a:lines)
+        call deletebufline(a:bufnr, len(a:lines) + 1, '$')
+    endif
+endfunction
+
+" Shared teardown for undo_cleave and join_buffers: close windows, delete
+" temp buffers, clear state
+function! s:teardown_cleave(original_bufnr, left_bufnr, right_bufnr)
+    let left_win_id = get(win_findbuf(a:left_bufnr), 0, -1)
+    let right_win_id = get(win_findbuf(a:right_bufnr), 0, -1)
+
+    if left_win_id != -1
+        call win_gotoid(left_win_id)
+        execute 'buffer' a:original_bufnr
+    else
+        execute 'buffer' a:original_bufnr
+    endif
+
+    if right_win_id != -1
+        call win_gotoid(right_win_id)
+        close
+    endif
+
+    if bufexists(a:left_bufnr)
+        execute 'bdelete!' a:left_bufnr
+    endif
+    if bufexists(a:right_bufnr)
+        execute 'bdelete!' a:right_bufnr
+    endif
+
+    if left_win_id != -1
+        call win_gotoid(left_win_id)
+    endif
+
+    call s:clear_cleave_buffers()
+endfunction
+
+" ============================================================================
 " Virtual Column Utility Functions
 " ============================================================================
 
@@ -310,7 +457,6 @@ function! cleave#setup_windows(cleave_col, left_bufnr, right_bufnr, original_win
 endfunction
 
 function! cleave#undo_cleave()
-    " Get buffer numbers using helper function
     let [original_bufnr, left_bufnr, right_bufnr] = s:get_cleave_buffers()
 
     if original_bufnr == -1 || left_bufnr == -1 || right_bufnr == -1
@@ -318,33 +464,7 @@ function! cleave#undo_cleave()
         return
     endif
 
-    " Find the windows associated with the buffers
-    let left_win_id = get(win_findbuf(left_bufnr), 0, -1)
-    let right_win_id = get(win_findbuf(right_bufnr), 0, -1)
-
-    " Restore the original buffer and close the windows
-    if left_win_id != -1
-        call win_gotoid(left_win_id)
-        execute 'buffer' original_bufnr
-    else
-        execute 'buffer' original_bufnr
-    endif
-
-    if right_win_id != -1
-        call win_gotoid(right_win_id)
-        close
-    endif
-
-    " Finally, delete the temporary buffers
-    if bufexists(left_bufnr)
-        execute 'bdelete!' left_bufnr
-    endif
-    if bufexists(right_bufnr)
-        execute 'bdelete!' right_bufnr
-    endif
-
-    " Clear script-local variables since cleave is undone
-    call s:clear_cleave_buffers()
+    call s:teardown_cleave(original_bufnr, left_bufnr, right_bufnr)
 endfunction
 
 
@@ -403,7 +523,6 @@ function! cleave#join_buffers()
     " Update the original buffer
     " Load the buffer first if it's not loaded
     if !bufloaded(original_bufnr)
-        echomsg "Debug: Loading unloaded buffer"
         call bufload(original_bufnr)
     endif
     
@@ -411,47 +530,15 @@ function! cleave#join_buffers()
     call deletebufline(original_bufnr, 1, '$')
     call setbufline(original_bufnr, 1, combined_lines)
 
-    " Set textwidth of joined buffer to match LEFT buffer's textwidth
+    " Restore options from left buffer to original
     let left_textwidth = getbufvar(left_bufnr, '&textwidth', 0)
     if left_textwidth > 0
         call setbufvar(original_bufnr, '&textwidth', left_textwidth)
     endif
-    
-    " Set foldcolumn of joined buffer to match LEFT buffer's foldcolumn
     let left_foldcolumn = getbufvar(left_bufnr, '&foldcolumn', 0)
     call setbufvar(original_bufnr, '&foldcolumn', left_foldcolumn)
 
-    " Find the windows associated with the buffers
-    let left_win_id = get(win_findbuf(left_bufnr), 0, -1)
-    let right_win_id = get(win_findbuf(right_bufnr), 0, -1)
-
-    " Switch left window to original buffer
-    if left_win_id != -1
-        call win_gotoid(left_win_id)
-        execute 'buffer' original_bufnr
-    endif
-
-    " Close the right window
-    if right_win_id != -1
-        call win_gotoid(right_win_id)
-        close
-    endif
-
-    " Delete the temporary buffers without saving
-    if bufexists(left_bufnr)
-        execute 'bdelete!' left_bufnr
-    endif
-    if bufexists(right_bufnr)
-        execute 'bdelete!' right_bufnr
-    endif
-
-    " Return to the original buffer window
-    if left_win_id != -1
-        call win_gotoid(left_win_id)
-    endif
-
-    " Clear script-local variables since buffers are joined
-    call s:clear_cleave_buffers()
+    call s:teardown_cleave(original_bufnr, left_bufnr, right_bufnr)
 
     echomsg "Cleave: Buffers joined successfully."
 endfunction
@@ -490,57 +577,14 @@ function! cleave#reflow_buffer(new_width)
 endfunction
 
 function! cleave#reflow_right_buffer(new_width, current_bufnr, left_bufnr, right_bufnr)
-    " Dedicated right buffer reflow logic. Assumed called in right buffer
-    " Reflows the content to new width attempting to keep existing paragraph
-    " Assumed right paragraphs are in correct position prior to reflowing
-    " Start locations. Does not not reference 
-    " Step 1: Note line positions of first line in each paragraph in RIGHT buffer
+    " Reflow right buffer to new width, preserving paragraph positions
     let current_lines = getline(1, '$')
-    let para_positions = []
-    let paragraphs = []
-    
-    " Find paragraph start positions and extract paragraph content
-    let current_para_lines = []
-    let current_para_start = -1
-    
-    for i in range(len(current_lines))
-        let line = current_lines[i]
-        let trimmed_line = trim(line)
-        let is_paragraph_start = v:false
-        
-        if i == 0 && trimmed_line != ''
-            let is_paragraph_start = v:true
-        elseif i > 0 && trimmed_line != ''
-            " Check if this is a paragraph start - previous line must be empty
-            let prev_right_empty = trim(current_lines[i-1]) == ''
-            
-            if prev_right_empty
-                let is_paragraph_start = v:true
-            endif
-        endif
-        
-        if is_paragraph_start
-            " Save previous paragraph if we have one
-            if current_para_start >= 0 && !empty(current_para_lines)
-                call add(para_positions, current_para_start + 1)  " Convert to 1-based
-                call add(paragraphs, copy(current_para_lines))
-            endif
-            
-            " Start new paragraph
-            let current_para_lines = [trimmed_line]
-            let current_para_start = i
-        elseif current_para_start >= 0 && trimmed_line != ''
-            " Continue current paragraph - only add non-empty lines
-            call add(current_para_lines, trimmed_line)
-        endif
-    endfor
-    
-    " Save final paragraph
-    if current_para_start >= 0 && !empty(current_para_lines)
-        call add(para_positions, current_para_start + 1)  " Convert to 1-based
-        call add(paragraphs, copy(current_para_lines))
-    endif
-    
+
+    " Step 1: Extract paragraphs with their positions
+    let extracted = s:extract_paragraphs(current_lines)
+    let para_positions = map(copy(extracted), 'v:val.start')
+    let paragraphs = map(copy(extracted), 'v:val.content')
+
     " Step 2: Reflow each paragraph individually to new width
     let reflowed_paragraphs = []
     for para_lines in paragraphs
@@ -603,57 +647,18 @@ function! cleave#reflow_right_buffer(new_width, current_bufnr, left_bufnr, right
     endfor
     
     " Step 4: Update the right buffer
-    call setline(1, new_buffer_lines)
-    if line('$') > len(new_buffer_lines)
-        execute (len(new_buffer_lines) + 1) . ',$delete'
-    endif
-    
-    " Set textwidth for the reflowed buffer
+    call s:replace_buffer_lines(bufnr('%'), new_buffer_lines)
     execute 'setlocal textwidth=' . a:new_width
-    
-    echomsg "Cleave: Reflowed right buffer to width " . a:new_width
 endfunction
 
 function! cleave#reflow_left_buffer(new_width, current_bufnr, left_bufnr, right_bufnr)
-    " Dedicated left buffer reflow logic (updated to handle current right buffer state)
-    " Step 1: Find paragraph positions in RIGHT buffer (current state)
+    " Step 1: Find paragraph positions in RIGHT buffer using left-context detection
     let right_lines = getbufline(a:right_bufnr, 1, '$')
     let left_lines = getbufline(a:left_bufnr, 1, '$')
-    let right_para_line_numbers = []
-    
-    "echomsg "CleaveReflow DEBUG: Right buffer has " . len(right_lines) . " lines"
-    
-    for i in range(len(right_lines))
-        let line = right_lines[i]
-        let is_paragraph_start = v:false
-        
-        if i == 0 && trim(line) != ''
-            " First line is a paragraph start if not empty
-            let is_paragraph_start = v:true
-        elseif i > 0 && trim(line) != ''
-            " Check if this can be a paragraph start based on left buffer context
-            " Allow paragraph start if previous right line is empty OR corresponding left line is empty/whitespace
-            let prev_right_empty = trim(right_lines[i-1]) == ''
-            let left_line_empty = (i-1 < len(left_lines)) ? (trim(left_lines[i-1]) == '') : v:true
-            
-            if prev_right_empty || left_line_empty
-                let is_paragraph_start = v:true
-            endif
-        endif
-        
-        if is_paragraph_start
-            call add(right_para_line_numbers, i + 1)  " Convert to 1-based line numbers
-            "echomsg "CleaveReflow DEBUG: Found paragraph start at line " . (i + 1) . ": '" . line . "'"
-        endif
-    endfor
-    
-    "echomsg "CleaveReflow DEBUG: Right buffer paragraph line numbers: " . string(right_para_line_numbers)
-    
+    let right_para_line_numbers = s:para_starts_ctx(right_lines, left_lines)
+
     " Step 2: Store paragraph first words from LEFT buffer at corresponding positions
-    " This handles cases where new paragraphs may have been added to the right buffer
     let para_first_words = []
-    let left_lines = getbufline(a:left_bufnr, 1, '$')
-    "echomsg "CleaveReflow DEBUG: Left buffer has " . len(left_lines) . " lines"
     
     " For each paragraph position in the right buffer, try to find corresponding content in left buffer
     for line_num in right_para_line_numbers
@@ -671,117 +676,66 @@ function! cleave#reflow_left_buffer(new_width, current_bufnr, left_bufnr, right_
         
         " If no content at exact line, search nearby lines for paragraph content
         if empty(first_word)
-            " Search within a small range around the target line
             let search_start = max([1, line_num - 2])
             let search_end = min([len(left_lines), line_num + 2])
-            
+
             for search_line in range(search_start, search_end)
-                let line_text = left_lines[search_line - 1]
-                let trimmed_text = trim(line_text)
-                
-                " Check if this could be a paragraph start
-                let is_para_start = v:false
-                if search_line == 1 && !empty(trimmed_text)
-                    let is_para_start = v:true
-                elseif search_line > 1 && empty(trim(left_lines[search_line - 2])) && !empty(trimmed_text)
-                    let is_para_start = v:true
-                endif
-                
-                if is_para_start
-                    let first_word = matchstr(trimmed_text, '\S\+')
+                if s:is_para_start(left_lines, search_line - 1)
+                    let first_word = matchstr(trim(left_lines[search_line - 1]), '\S\+')
                     if !empty(first_word)
-                        "echomsg "CleaveReflow DEBUG: Found nearby first word at line " . search_line . ": '" . first_word . "'"
                         break
                     endif
                 endif
             endfor
         endif
-        
+
         call add(para_first_words, first_word)
-        if empty(first_word)
-            "echomsg "CleaveReflow DEBUG: No first word found for right buffer line " . line_num
-        endif
     endfor
-    
+
     " Step 3: Reflow the text in the buffer with the cursor
     let current_lines = getline(1, '$')
     let reflowed_lines = cleave#reflow_text(current_lines, a:new_width)
-    
-    " Update current buffer content
-    call setline(1, reflowed_lines)
-    if line('$') > len(reflowed_lines)
-        execute (len(reflowed_lines) + 1) . ',$delete'
-    endif
-    
+    call s:replace_buffer_lines(bufnr('%'), reflowed_lines)
+
     " Step 3.5: Find updated paragraph positions by matching first words
     let updated_para_line_numbers = []
     let current_buffer_lines = getline(1, '$')
-    let last_found_line = 0  " Track last found position to ensure increasing order
-    
-    " For each stored first word, find where it appears in the reflowed content
+    let last_found_line = 0
+
     for i in range(len(para_first_words))
         let target_word = para_first_words[i]
         if len(target_word) > 0
-            " Search for this first word in the reflowed content, starting after last found position
             let found = v:false
             for line_idx in range(last_found_line, len(current_buffer_lines))
-                let line = current_buffer_lines[line_idx]
-                let first_word_in_line = matchstr(line, '\S\+')
-                
-                if first_word_in_line == target_word
-                    " Check if this is a paragraph start (first line or after empty line)
-                    let is_para_start = v:false
-                    if line_idx == 0 && trim(line) != ''
-                        let is_para_start = v:true
-                    elseif line_idx > 0 && trim(current_buffer_lines[line_idx-1]) == '' && trim(line) != ''
-                        let is_para_start = v:true
-                    endif
-                    
-                    if is_para_start
-                        call add(updated_para_line_numbers, line_idx + 1)  " Convert to 1-based
-                        let last_found_line = line_idx + 1  " Update search start for next paragraph
-                        "echomsg "CleaveReflow DEBUG: Found paragraph '" . target_word . "' at line " . (line_idx + 1) . " after reflow"
-                        let found = v:true
-                        break  " Found this paragraph, move to next
-                    endif
+                let first_word_in_line = matchstr(current_buffer_lines[line_idx], '\S\+')
+
+                if first_word_in_line == target_word && s:is_para_start(current_buffer_lines, line_idx)
+                    call add(updated_para_line_numbers, line_idx + 1)
+                    let last_found_line = line_idx + 1
+                    let found = v:true
+                    break
                 endif
             endfor
-            
+
             if !found
-                echomsg "CleaveReflow WARNING: Could not find paragraph starting with '" . target_word . "' after line " . last_found_line
+                echomsg "CleaveReflow WARNING: Could not find paragraph starting with '" . target_word . "'"
             endif
         endif
     endfor
-    
-    echomsg "CleaveReflow DEBUG: Text property positions before reflow: " . string(right_para_line_numbers)
-    echomsg "CleaveReflow DEBUG: Text property positions after reflow: " . string(updated_para_line_numbers)
-    
-    " Check that counts match
-    if len(updated_para_line_numbers) != len(right_para_line_numbers)
-        echomsg "CleaveReflow WARNING: Paragraph count mismatch! Before: " . len(right_para_line_numbers) . ", After: " . len(updated_para_line_numbers)
-        echomsg "CleaveReflow DEBUG: Stored first words: " . string(para_first_words)
-    else
-        echomsg "CleaveReflow DEBUG: Paragraph counts match: " . len(updated_para_line_numbers)
-    endif
-    
+
     " Step 4: Adjust RIGHT buffer so each first line is back on updated line numbers
-    echomsg "CleaveReflow DEBUG: Calling restore_paragraph_alignment with updated line numbers: " . string(updated_para_line_numbers)
     call cleave#restore_paragraph_alignment(a:right_bufnr, right_lines, updated_para_line_numbers)
-    
+
     " Update window sizing for left buffer reflow
     let new_cleave_col = a:new_width + g:cleave_gutter + 1
     call setbufvar(a:current_bufnr, 'cleave_col', new_cleave_col)
     call setbufvar(a:right_bufnr, 'cleave_col', new_cleave_col)
-    
-    " Resize left window
+
     let left_winid = get(win_findbuf(a:current_bufnr), 0, -1)
     let original_foldcolumn = left_winid != -1 ? getwinvar(left_winid, '&foldcolumn') : 0
     execute 'vertical resize ' . (a:new_width + original_foldcolumn + g:cleave_gutter)
-    
-    " Set textwidth for the reflowed buffer
     execute 'setlocal textwidth=' . a:new_width
-    
-    echomsg "Cleave: Reflowed left buffer to width " . a:new_width
+
     call cleave#set_text_properties()
 endfunction
 
@@ -836,38 +790,12 @@ function! cleave#set_textwidth_to_longest_line()
 endfunction
 
 function! cleave#get_right_buffer_paragraph_lines()
-    " Returns array of line numbers (1-based) where paragraphs start in the right buffer
-    " Uses script-local variable to identify the right buffer
     if s:cleave_right_bufnr == -1 || !bufexists(s:cleave_right_bufnr)
         echoerr "Cleave: Right buffer not found or not valid"
         return []
     endif
-    
-    let current_lines = getbufline(s:cleave_right_bufnr, 1, '$')
-    let para_line_numbers = []
-    
-    for i in range(len(current_lines))
-        let line = current_lines[i]
-        let trimmed_line = trim(line)
-        let is_paragraph_start = v:false
-        
-        if i == 0 && trimmed_line != ''
-            let is_paragraph_start = v:true
-        elseif i > 0 && trimmed_line != ''
-            " Check if this is a paragraph start - previous line must be empty
-            let prev_right_empty = trim(current_lines[i-1]) == ''
-            
-            if prev_right_empty
-                let is_paragraph_start = v:true
-            endif
-        endif
-        
-        if is_paragraph_start
-            call add(para_line_numbers, i + 1)  " Convert to 1-based line numbers
-        endif
-    endfor
-    
-    return para_line_numbers
+
+    return s:para_starts(getbufline(s:cleave_right_bufnr, 1, '$'))
 endfunction
 
 function! cleave#get_left_buffer_paragraph_lines()
@@ -899,7 +827,6 @@ function! cleave#get_left_buffer_paragraph_lines()
     
     " If no properties found, create them
     if empty(para_line_numbers)
-        echomsg "Cleave: No text properties found, creating them..."
         call cleave#set_text_properties()
         
         " Try again to get the properties
@@ -998,44 +925,9 @@ function! cleave#place_right_paragraphs_at_lines(target_line_numbers)
     
     " Step 1: Extract current paragraphs from right buffer
     let current_lines = getbufline(s:cleave_right_bufnr, 1, '$')
-    let paragraphs = []
-    let current_para_lines = []
-    
-    for i in range(len(current_lines))
-        let line = current_lines[i]
-        let trimmed_line = trim(line)
-        let is_paragraph_start = v:false
-        
-        if i == 0 && trimmed_line != ''
-            let is_paragraph_start = v:true
-        elseif i > 0 && trimmed_line != ''
-            " Check if this is a paragraph start - previous line must be empty
-            let prev_right_empty = trim(current_lines[i-1]) == ''
-            
-            if prev_right_empty
-                let is_paragraph_start = v:true
-            endif
-        endif
-        
-        if is_paragraph_start
-            " Save previous paragraph if we have one
-            if !empty(current_para_lines)
-                call add(paragraphs, copy(current_para_lines))
-            endif
-            
-            " Start new paragraph
-            let current_para_lines = [trimmed_line]
-        elseif !empty(current_para_lines) && trimmed_line != ''
-            " Continue current paragraph - only add non-empty lines
-            call add(current_para_lines, trimmed_line)
-        endif
-    endfor
-    
-    " Save final paragraph
-    if !empty(current_para_lines)
-        call add(paragraphs, copy(current_para_lines))
-    endif
-    
+    let extracted = s:extract_paragraphs(current_lines)
+    let paragraphs = map(copy(extracted), 'v:val.content')
+
     " Step 2: Place paragraphs at target positions with conflict resolution
     let new_buffer_lines = []
     let current_line_num = 1
@@ -1073,15 +965,7 @@ function! cleave#place_right_paragraphs_at_lines(target_line_numbers)
     endfor
     
     " Step 3: Update the right buffer
-    call setbufline(s:cleave_right_bufnr, 1, new_buffer_lines)
-    
-    " Remove any extra lines beyond our new content
-    let total_lines = len(getbufline(s:cleave_right_bufnr, 1, '$'))
-    if total_lines > len(new_buffer_lines)
-        call deletebufline(s:cleave_right_bufnr, len(new_buffer_lines) + 1, total_lines)
-    endif
-    
-    echomsg "Cleave: Placed " . len(paragraphs) . " paragraphs at target positions"
+    call s:replace_buffer_lines(s:cleave_right_bufnr, new_buffer_lines)
     return actual_positions
 endfunction
 
@@ -1133,130 +1017,53 @@ function! cleave#wrap_paragraph(paragraph_lines, width)
 endfunction
 
 function! cleave#restore_paragraph_alignment(right_bufnr, original_right_lines, saved_para_line_numbers)
-    " Restore right buffer so paragraph first lines are back on their saved line numbers
-    "echomsg "RestoreAlignment DEBUG: Starting with " . len(a:original_right_lines) . " original lines"
-    "echomsg "RestoreAlignment DEBUG: Target line numbers: " . string(a:saved_para_line_numbers)
-    
-    " Step 0: Clean up trailing whitespace from all lines
-    let cleaned_lines = []
-    for line in a:original_right_lines
-        call add(cleaned_lines, substitute(line, '\s\+$', '', ''))
-    endfor
-    "echomsg "RestoreAlignment DEBUG: Cleaned trailing whitespace from all lines"
-    
-    " Get corresponding left buffer lines for context using script variables
+    " Clean up trailing whitespace from all lines
+    let cleaned_lines = map(copy(a:original_right_lines), 'substitute(v:val, "\\s\\+$", "", "")')
+
+    " Get left buffer lines for context
     let left_lines = []
-    let left_bufnr = -1
-    
-    " Try to use script-local variables first
     if s:validate_cleave_buffers() && s:cleave_right_bufnr == a:right_bufnr
-        let left_bufnr = s:cleave_left_bufnr
-        let left_lines = getbufline(left_bufnr, 1, '$')
+        let left_lines = getbufline(s:cleave_left_bufnr, 1, '$')
     else
-        " Fallback: Find the left buffer that corresponds to this right buffer
         let original_bufnr = getbufvar(a:right_bufnr, 'cleave_original', -1)
         if original_bufnr != -1
             for i in range(1, bufnr("$"))
                 if bufexists(i) && getbufvar(i, 'cleave_original', -1) == original_bufnr && getbufvar(i, 'cleave_side', '') == 'left'
-                    let left_bufnr = i
                     let left_lines = getbufline(i, 1, '$')
                     break
                 endif
             endfor
         endif
     endif
-    
-    " Step 1: Extract paragraphs into data structures with their target line numbers
+
+    " Step 1: Extract paragraphs and assign target line numbers
+    let extracted = s:extract_paragraphs_ctx(cleaned_lines, left_lines)
     let paragraphs = []
-    let para_idx = 0
-    let current_para_lines = []
-    let current_para_start = -1
-    
-    " Find paragraphs in cleaned right buffer using improved logic
-    for i in range(len(cleaned_lines))
-        let line = cleaned_lines[i]
-        let trimmed_line = trim(line)
-        let is_paragraph_start = v:false
-        
-        if i == 0 && trimmed_line != ''
-            let is_paragraph_start = v:true
-        elseif i > 0 && trimmed_line != ''
-            " Check if this can be a paragraph start based on left buffer context
-            " Allow paragraph start if previous right line is empty OR corresponding left line is empty/whitespace
-            let prev_right_empty = trim(cleaned_lines[i-1]) == ''
-            let left_line_empty = (i-1 < len(left_lines)) ? (trim(left_lines[i-1]) == '') : v:true
-            
-            if prev_right_empty || left_line_empty
-                let is_paragraph_start = v:true
-            endif
-        endif
-        
-        if is_paragraph_start
-            " Save previous paragraph if we have one
-            if current_para_start >= 0 && !empty(current_para_lines)
-                let target_line = para_idx < len(a:saved_para_line_numbers) ? a:saved_para_line_numbers[para_idx] : -1
-                call add(paragraphs, {'target_line': target_line, 'content': copy(current_para_lines)})
-                "echomsg "RestoreAlignment DEBUG: Saved paragraph " . para_idx . " with target line " . target_line . " and " . len(current_para_lines) . " lines"
-                let para_idx += 1
-            endif
-            
-            " Start new paragraph - only include lines with text
-            let current_para_lines = [line]
-            let current_para_start = i
-            "echomsg "RestoreAlignment DEBUG: Started new paragraph at position " . i . ": '" . line . "'"
-        elseif current_para_start >= 0 && trimmed_line != ''
-            " Continue current paragraph - only add lines with text content
-            call add(current_para_lines, line)
-            "echomsg "RestoreAlignment DEBUG: Added to paragraph: '" . line . "'"
-        endif
-        " Skip empty lines - they are not included in paragraph content
+    for i in range(len(extracted))
+        let target = i < len(a:saved_para_line_numbers) ? a:saved_para_line_numbers[i] : -1
+        call add(paragraphs, {'target_line': target, 'content': extracted[i].content})
     endfor
-    
-    " Save final paragraph
-    if current_para_start >= 0 && !empty(current_para_lines)
-        let target_line = para_idx < len(a:saved_para_line_numbers) ? a:saved_para_line_numbers[para_idx] : -1
-        call add(paragraphs, {'target_line': target_line, 'content': copy(current_para_lines)})
-        "echomsg "RestoreAlignment DEBUG: Saved final paragraph " . para_idx . " with target line " . target_line . " and " . len(current_para_lines) . " lines"
-    endif
-    
-    "echomsg "RestoreAlignment DEBUG: Extracted " . len(paragraphs) . " paragraphs"
-    
+
     " Step 2: Build new buffer content by placing paragraphs at target positions
     let adjusted_lines = []
     let current_line_num = 1
-    
+
     for para in paragraphs
         if para.target_line > 0
-            "echomsg "RestoreAlignment DEBUG: Processing paragraph with target line " . para.target_line
-            
-            " Add empty lines until we reach the target line
             while current_line_num < para.target_line
                 call add(adjusted_lines, '')
-                "echomsg "RestoreAlignment DEBUG: Added empty line at position " . current_line_num
                 let current_line_num += 1
             endwhile
-            
-            " Add the paragraph content
+
             for content_line in para.content
                 call add(adjusted_lines, content_line)
-                "echomsg "RestoreAlignment DEBUG: Added paragraph line at position " . current_line_num . ": '" . content_line . "'"
                 let current_line_num += 1
             endfor
-        else
-            "echomsg "RestoreAlignment DEBUG: Skipping paragraph with invalid target line " . para.target_line
         endif
     endfor
-    
-    "echomsg "RestoreAlignment DEBUG: Final adjusted_lines has " . len(adjusted_lines) . " lines"
-    
+
     " Step 3: Update right buffer
-    call setbufline(a:right_bufnr, 1, adjusted_lines)
-    if getbufinfo(a:right_bufnr)[0].linecount > len(adjusted_lines)
-        call deletebufline(a:right_bufnr, len(adjusted_lines) + 1, '$')
-        "echomsg "RestoreAlignment DEBUG: Deleted extra lines from right buffer"
-    endif
-    
-    "echomsg "RestoreAlignment DEBUG: Right buffer now has " . getbufinfo(a:right_bufnr)[0].linecount . " lines"
+    call s:replace_buffer_lines(a:right_bufnr, adjusted_lines)
 endfunction
 
 function! cleave#set_text_properties()
@@ -1277,45 +1084,17 @@ function! cleave#set_text_properties()
     " Define text property type for paragraph markers
     let prop_type = 'cleave_paragraph_start'
     try
-        "TODO: indicate the word note is anchored to
-        "underline perhaps? 
         call prop_type_add(prop_type, {'highlight': 'MatchParen'})
-        "call prop_type_add(prop_type, {})
     catch /E969:/
-        " Property type already exists, that's fine
     endtry
     
     " Clear existing text properties in left buffer
     call prop_remove({'type': prop_type, 'bufnr': left_bufnr, 'all': 1})
     
-    " Get content from both buffers
     let right_lines = getbufline(right_bufnr, 1, '$')
     let left_lines = getbufline(left_bufnr, 1, '$')
-    
-    " Find paragraph start positions in right buffer
-    let right_para_positions = []
-    for i in range(len(right_lines))
-        let line = right_lines[i]
-        let is_paragraph_start = v:false
-        
-        if i == 0 && trim(line) != ''
-            " First line is a paragraph start if not empty
-            let is_paragraph_start = v:true
-        elseif i > 0 && trim(line) != ''
-            " Check if this can be a paragraph start based on left buffer context
-            let prev_right_empty = trim(right_lines[i-1]) == ''
-            let left_line_empty = (i-1 < len(left_lines)) ? (trim(left_lines[i-1]) == '') : v:true
-            
-            if prev_right_empty || left_line_empty
-                let is_paragraph_start = v:true
-            endif
-        endif
-        
-        if is_paragraph_start
-            call add(right_para_positions, i + 1)  " Convert to 1-based line numbers
-        endif
-    endfor
-    
+    let right_para_positions = s:para_starts_ctx(right_lines, left_lines)
+
     " Add text properties to corresponding lines in left buffer
     let properties_added = 0
     for line_num in right_para_positions
@@ -1347,5 +1126,4 @@ function! cleave#set_text_properties()
         endif
     endfor
     
-    echomsg "Cleave: Refreshed " . properties_added . " text properties in left buffer"
 endfunction
