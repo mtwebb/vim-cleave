@@ -936,17 +936,9 @@ function! cleave#wrap_paragraph(paragraph_lines, width)
 endfunction
 
 function! cleave#restore_paragraph_alignment(right_bufnr, original_right_lines, saved_para_starts)
-    " Clean up trailing whitespace from all lines
     let cleaned_lines = map(copy(a:original_right_lines), 'substitute(v:val, "\\s\\+$", "", "")')
 
-    let left_lines = []
-    let [original_bufnr, left_bufnr, right_bufnr] = s:resolve_buffers(a:right_bufnr)
-    if left_bufnr != -1
-        let left_lines = getbufline(left_bufnr, 1, '$')
-    endif
-
-    " Step 1: Extract paragraphs and assign target line numbers
-    let extracted = s:extract_paragraphs_ctx(cleaned_lines, left_lines)
+    let extracted = s:extract_paragraphs(cleaned_lines)
     let paragraphs = []
     for i in range(len(extracted))
         let target = i < len(a:saved_para_starts) ? a:saved_para_starts[i] : -1
