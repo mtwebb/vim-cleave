@@ -358,11 +358,7 @@ function! cleave#join_buffers()
         return
     endif
 
-    " Get cleave column from buffer variables (still needed for joining logic)
-    "XXX why current? should get from left.
-    "cleave col is missing gutter offset
-    let current_bufnr = bufnr('%')
-    let cleave_col = getbufvar(current_bufnr, 'cleave_col', -1)
+    let cleave_col = getbufvar(left_bufnr, 'cleave_col', -1)
 
     if cleave_col == -1
         echoerr "Cleave: Missing cleave column information."
@@ -773,7 +769,6 @@ function! cleave#reflow_left_buffer(new_width, current_bufnr, left_bufnr, right_
     call cleave#restore_paragraph_alignment(a:right_bufnr, right_lines, updated_para_line_numbers)
     
     " Update window sizing for left buffer reflow
-    " XXX this needs gutter width added
     let new_cleave_col = a:new_width + g:cleave_gutter + 1
     call setbufvar(a:current_bufnr, 'cleave_col', new_cleave_col)
     call setbufvar(a:right_bufnr, 'cleave_col', new_cleave_col)

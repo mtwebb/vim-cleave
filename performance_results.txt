@@ -1,9 +1,0 @@
-
-Running performance benchmarks...
-Benchmarking with 1000 iterations...
-vcol_to_byte performance:   9.375399 seconds
-byte_to_vcol performance:   8.585344 seconds
-virtual_strpart performance:  28.361544 seconds
-strdisplaywidth performance (10x iterations):   0.203055 seconds
-Performance benchmark completed.
-Note: Times may vary based on system performance and Vim version.
