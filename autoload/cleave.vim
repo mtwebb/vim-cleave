@@ -394,12 +394,10 @@ endfunction
 function! cleave#split_content(lines, cleave_col)
     let left_lines = []
     let right_lines = []
-    let split_col = a:cleave_col
 
     for line in a:lines
-        " Use virtual column splitting instead of byte-based splitting
-        let left_part = cleave#virtual_strpart(line, 1, split_col)
-        let right_part = cleave#virtual_strpart(line, split_col)
+        let left_part = cleave#virtual_strpart(line, 1, a:cleave_col)
+        let right_part = cleave#virtual_strpart(line, a:cleave_col)
         call add(left_lines, left_part)
         call add(right_lines, right_part)
     endfor
@@ -489,12 +487,6 @@ function! cleave#join_buffers()
     let left_lines = getbufline(left_bufnr, 1, '$')
     let right_lines = getbufline(right_bufnr, 1, '$')
 
-    " Use the original cleave_col value for consistent virtual column alignment
-    " This ensures that the right content starts at the same virtual column position
-    " where the original split occurred, accounting for display width properly
-    let cleave_column = cleave_col
-
-    " Combine the content
     let combined_lines = []
     let max_lines = max([len(left_lines), len(right_lines)])
     
@@ -502,15 +494,11 @@ function! cleave#join_buffers()
         let left_line = (i < len(left_lines)) ? left_lines[i] : ''
         let right_line = (i < len(right_lines)) ? right_lines[i] : ''
         
-        " Only add padding if there's content in the right part
-        " This prevents adding unnecessary spaces to lines that were originally shorter than cleave_column
         if empty(right_line)
-            " No right content, just use the left line as-is
             let combined_line = left_line
         else
-            " Calculate padding needed to reach cleave_column
             let left_len = strdisplaywidth(left_line)
-            let padding_needed = cleave_column - 1 - left_len
+            let padding_needed = cleave_col - 1 - left_len
             let padding = padding_needed > 0 ? repeat(' ', padding_needed) : ''
             
             let combined_line = left_line . padding . right_line
@@ -582,7 +570,7 @@ function! cleave#reflow_right_buffer(new_width, current_bufnr, left_bufnr, right
 
     " Step 1: Extract paragraphs with their positions
     let extracted = s:extract_paragraphs(current_lines)
-    let para_positions = map(copy(extracted), 'v:val.start')
+    let para_starts = map(copy(extracted), 'v:val.start')
     let paragraphs = map(copy(extracted), 'v:val.content')
 
     " Step 2: Reflow each paragraph individually to new width
@@ -595,51 +583,42 @@ function! cleave#reflow_right_buffer(new_width, current_bufnr, left_bufnr, right
     " Step 3: Reconstruct buffer preserving original positions when possible
     let new_buffer_lines = []
     let current_line_num = 1
-    let new_para_positions = []
+    let new_para_starts = []
     
-    for i in range(len(para_positions))
-        let target_line = para_positions[i]
+    for i in range(len(para_starts))
+        let target_line = para_starts[i]
         let reflowed_para = reflowed_paragraphs[i]
         let para_length = len(reflowed_para)
         
-        " Check if we can fit this paragraph at its original position
         let can_fit_at_original = v:true
         
-        " Check if placing at original position would overlap with next paragraph
-        if i < len(para_positions) - 1
-            let next_target = para_positions[i + 1]
+        if i < len(para_starts) - 1
+            let next_target = para_starts[i + 1]
             let para_end_at_original = target_line + para_length - 1
             
-            " Need at least one blank line between paragraphs
             if para_end_at_original >= next_target
                 let can_fit_at_original = v:false
             endif
         endif
         
-        " Determine actual placement position
         let actual_position = target_line
         if current_line_num > target_line || !can_fit_at_original
-            " Can't fit at original position, place at current position with separation
             let actual_position = current_line_num
             
-            " Ensure at least one blank line separation from previous content
             if current_line_num > 1 && len(new_buffer_lines) > 0 && new_buffer_lines[-1] != ''
                 call add(new_buffer_lines, '')
                 let current_line_num += 1
                 let actual_position = current_line_num
             endif
         else
-            " Can fit at original position, add empty lines to reach it
             while current_line_num < target_line
                 call add(new_buffer_lines, '')
                 let current_line_num += 1
             endwhile
         endif
         
-        " Record the actual position where this paragraph starts
-        call add(new_para_positions, actual_position)
+        call add(new_para_starts, actual_position)
         
-        " Add the reflowed paragraph
         for para_line in reflowed_para
             call add(new_buffer_lines, para_line)
             let current_line_num += 1
@@ -655,13 +634,12 @@ function! cleave#reflow_left_buffer(new_width, current_bufnr, left_bufnr, right_
     " Step 1: Find paragraph positions in RIGHT buffer using left-context detection
     let right_lines = getbufline(a:right_bufnr, 1, '$')
     let left_lines = getbufline(a:left_bufnr, 1, '$')
-    let right_para_line_numbers = s:para_starts_ctx(right_lines, left_lines)
+    let right_para_starts = s:para_starts_ctx(right_lines, left_lines)
 
     " Step 2: Store paragraph first words from LEFT buffer at corresponding positions
     let para_first_words = []
     
-    " For each paragraph position in the right buffer, try to find corresponding content in left buffer
-    for line_num in right_para_line_numbers
+    for line_num in right_para_starts
         let first_word = ''
         
         " Check if there's content at this line in the left buffer
@@ -697,8 +675,7 @@ function! cleave#reflow_left_buffer(new_width, current_bufnr, left_bufnr, right_
     let reflowed_lines = cleave#reflow_text(current_lines, a:new_width)
     call s:replace_buffer_lines(bufnr('%'), reflowed_lines)
 
-    " Step 3.5: Find updated paragraph positions by matching first words
-    let updated_para_line_numbers = []
+    let updated_para_starts = []
     let current_buffer_lines = getline(1, '$')
     let last_found_line = 0
 
@@ -710,7 +687,7 @@ function! cleave#reflow_left_buffer(new_width, current_bufnr, left_bufnr, right_
                 let first_word_in_line = matchstr(current_buffer_lines[line_idx], '\S\+')
 
                 if first_word_in_line == target_word && s:is_para_start(current_buffer_lines, line_idx)
-                    call add(updated_para_line_numbers, line_idx + 1)
+                    call add(updated_para_starts, line_idx + 1)
                     let last_found_line = line_idx + 1
                     let found = v:true
                     break
@@ -724,7 +701,7 @@ function! cleave#reflow_left_buffer(new_width, current_bufnr, left_bufnr, right_
     endfor
 
     " Step 4: Adjust RIGHT buffer so each first line is back on updated line numbers
-    call cleave#restore_paragraph_alignment(a:right_bufnr, right_lines, updated_para_line_numbers)
+    call cleave#restore_paragraph_alignment(a:right_bufnr, right_lines, updated_para_starts)
 
     " Update window sizing for left buffer reflow
     let new_cleave_col = a:new_width + g:cleave_gutter + 1
@@ -815,28 +792,24 @@ function! cleave#get_left_buffer_paragraph_lines()
     endif
     
     let prop_type = 'cleave_paragraph_start'
-    let para_line_numbers = []
+    let para_starts = []
     
-    " Get all text properties of the specified type from the left buffer
     let props = prop_list(1, {'bufnr': s:cleave_left_bufnr, 'types': [prop_type], 'end_lnum': -1})
     
-    " Extract line numbers from properties
     for prop in props
-        call add(para_line_numbers, prop.lnum)
+        call add(para_starts, prop.lnum)
     endfor
     
-    " If no properties found, create them
-    if empty(para_line_numbers)
+    if empty(para_starts)
         call cleave#set_text_properties()
         
-        " Try again to get the properties
         let props = prop_list(1, {'bufnr': s:cleave_left_bufnr, 'types': [prop_type], 'end_lnum': -1})
         for prop in props
-            call add(para_line_numbers, prop.lnum)
+            call add(para_starts, prop.lnum)
         endfor
     endif
     
-    return para_line_numbers
+    return para_starts
 endfunction
 
 function! cleave#toggle_paragraph_highlight()
@@ -1016,7 +989,7 @@ function! cleave#wrap_paragraph(paragraph_lines, width)
     return !empty(wrapped) ? wrapped : ['']
 endfunction
 
-function! cleave#restore_paragraph_alignment(right_bufnr, original_right_lines, saved_para_line_numbers)
+function! cleave#restore_paragraph_alignment(right_bufnr, original_right_lines, saved_para_starts)
     " Clean up trailing whitespace from all lines
     let cleaned_lines = map(copy(a:original_right_lines), 'substitute(v:val, "\\s\\+$", "", "")')
 
@@ -1040,7 +1013,7 @@ function! cleave#restore_paragraph_alignment(right_bufnr, original_right_lines, 
     let extracted = s:extract_paragraphs_ctx(cleaned_lines, left_lines)
     let paragraphs = []
     for i in range(len(extracted))
-        let target = i < len(a:saved_para_line_numbers) ? a:saved_para_line_numbers[i] : -1
+        let target = i < len(a:saved_para_starts) ? a:saved_para_starts[i] : -1
         call add(paragraphs, {'target_line': target, 'content': extracted[i].content})
     endfor
 
@@ -1093,11 +1066,10 @@ function! cleave#set_text_properties()
     
     let right_lines = getbufline(right_bufnr, 1, '$')
     let left_lines = getbufline(left_bufnr, 1, '$')
-    let right_para_positions = s:para_starts_ctx(right_lines, left_lines)
+    let right_para_starts = s:para_starts_ctx(right_lines, left_lines)
 
-    " Add text properties to corresponding lines in left buffer
     let properties_added = 0
-    for line_num in right_para_positions
+    for line_num in right_para_starts
         if line_num <= len(left_lines)
             let left_line = left_lines[line_num - 1]  " Convert to 0-based for array access
             if trim(left_line) != ''
