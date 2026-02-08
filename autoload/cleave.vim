@@ -582,80 +582,57 @@ function! cleave#reflow_right_buffer(new_width, current_bufnr, left_bufnr, right
     execute 'setlocal textwidth=' . a:new_width
 endfunction
 
-function! cleave#reflow_left_buffer(new_width, current_bufnr, left_bufnr, right_bufnr)
-    " Step 1: Find paragraph positions in RIGHT buffer using left-context detection
-    let right_lines = getbufline(a:right_bufnr, 1, '$')
-    let left_lines = getbufline(a:left_bufnr, 1, '$')
-    let right_para_starts = s:para_starts_ctx(right_lines, left_lines)
-
-    " Step 2: Store paragraph first words from LEFT buffer at corresponding positions
-    let para_first_words = []
-    
-    for line_num in right_para_starts
+function! s:capture_paragraph_anchors(left_lines, para_starts)
+    let anchors = []
+    for line_num in a:para_starts
         let first_word = ''
-        
-        " Check if there's content at this line in the left buffer
-        if line_num <= len(left_lines)
-            let line_text = left_lines[line_num - 1]  " Convert to 0-based for array access
-            let first_word_match = matchstr(trim(line_text), '\S\+')
-            if len(first_word_match) > 0
-                let first_word = first_word_match
-                "echomsg "CleaveReflow DEBUG: Found first word at line " . line_num . ": '" . first_word . "'"
-            endif
+        if line_num <= len(a:left_lines)
+            let first_word = matchstr(trim(a:left_lines[line_num - 1]), '\S\+')
         endif
-        
-        " If no content at exact line, search nearby lines for paragraph content
         if empty(first_word)
             let search_start = max([1, line_num - 2])
-            let search_end = min([len(left_lines), line_num + 2])
-
+            let search_end = min([len(a:left_lines), line_num + 2])
             for search_line in range(search_start, search_end)
-                if s:is_para_start(left_lines, search_line - 1)
-                    let first_word = matchstr(trim(left_lines[search_line - 1]), '\S\+')
+                if s:is_para_start(a:left_lines, search_line - 1)
+                    let first_word = matchstr(trim(a:left_lines[search_line - 1]), '\S\+')
                     if !empty(first_word)
                         break
                     endif
                 endif
             endfor
         endif
-
-        call add(para_first_words, first_word)
+        call add(anchors, first_word)
     endfor
+    return anchors
+endfunction
 
-    " Step 3: Reflow the text in the buffer with the cursor
-    let current_lines = getline(1, '$')
-    let reflowed_lines = cleave#reflow_text(current_lines, a:new_width)
-    call s:replace_buffer_lines(bufnr('%'), reflowed_lines)
-
+function! s:locate_anchors_after_reflow(buffer_lines, anchors)
     let updated_para_starts = []
-    let current_buffer_lines = getline(1, '$')
     let last_found_line = 0
-
-    for i in range(len(para_first_words))
-        let target_word = para_first_words[i]
+    for i in range(len(a:anchors))
+        let target_word = a:anchors[i]
         if len(target_word) > 0
             let found = v:false
-            for line_idx in range(last_found_line, len(current_buffer_lines))
-                let first_word_in_line = matchstr(current_buffer_lines[line_idx], '\S\+')
-
-                if first_word_in_line == target_word && s:is_para_start(current_buffer_lines, line_idx)
+            for line_idx in range(last_found_line, len(a:buffer_lines))
+                let first_word_in_line = matchstr(a:buffer_lines[line_idx], '\S\+')
+                if first_word_in_line == target_word && s:is_para_start(a:buffer_lines, line_idx)
                     call add(updated_para_starts, line_idx + 1)
                     let last_found_line = line_idx + 1
                     let found = v:true
                     break
                 endif
             endfor
-
             if !found
                 echomsg "CleaveReflow WARNING: Could not find paragraph starting with '" . target_word . "'"
             endif
         endif
     endfor
+    return updated_para_starts
+endfunction
 
-    " Step 4: Adjust RIGHT buffer so each first line is back on updated line numbers
-    call cleave#restore_paragraph_alignment(a:right_bufnr, right_lines, updated_para_starts)
+function! s:apply_post_reflow_ui(new_width, current_bufnr, right_bufnr, right_lines, updated_para_starts)
+    call cleave#restore_paragraph_alignment(a:right_bufnr, a:right_lines, a:updated_para_starts)
 
-    " Update window sizing for left buffer reflow
     let new_cleave_col = a:new_width + g:cleave_gutter + 1
     let left_info = getbufvar(a:current_bufnr, 'cleave', {})
     let right_info = getbufvar(a:right_bufnr, 'cleave', {})
@@ -672,6 +649,21 @@ function! cleave#reflow_left_buffer(new_width, current_bufnr, left_bufnr, right_
     execute 'setlocal textwidth=' . a:new_width
 
     call cleave#set_text_properties()
+endfunction
+
+function! cleave#reflow_left_buffer(new_width, current_bufnr, left_bufnr, right_bufnr)
+    let right_lines = getbufline(a:right_bufnr, 1, '$')
+    let left_lines = getbufline(a:left_bufnr, 1, '$')
+    let right_para_starts = s:para_starts_ctx(right_lines, left_lines)
+
+    let anchors = s:capture_paragraph_anchors(left_lines, right_para_starts)
+
+    let reflowed_lines = cleave#reflow_text(getline(1, '$'), a:new_width)
+    call s:replace_buffer_lines(bufnr('%'), reflowed_lines)
+
+    let updated_para_starts = s:locate_anchors_after_reflow(getline(1, '$'), anchors)
+
+    call s:apply_post_reflow_ui(a:new_width, a:current_bufnr, a:right_bufnr, right_lines, updated_para_starts)
 endfunction
 
 function! cleave#reflow_text(lines, width)
