@@ -241,3 +241,115 @@ git clone https://github.com/user/vim-cleave.git
 - Cross-platform path handling
 - Platform-specific optimizations
 - Shell integration considerations
+
+## Robustness & Dependability Plan
+
+Ordered list of improvements. Each step is self-contained and testable before moving to the next.
+
+### 1. Remove debug output
+Remove all leftover `echomsg` debug calls that leak into user message history:
+- `"Debug: Loading unloaded buffer"` in `join_buffers` (line ~406)
+- `"Cleave: Refreshed N text properties"` in `set_text_properties` (line ~1350)
+- `"Cleave: No text properties found, creating them..."` in `get_left_buffer_paragraph_lines` (line ~902)
+- Commented-out `echomsg` blocks in `reflow_left_buffer` (lines ~624-702)
+Keep only `echoerr` for real errors and the success message in `join_buffers`.
+
+### 2. Validate `g:cleave_gutter` on use
+At the top of `split_buffer`, clamp `g:cleave_gutter` to a safe range. A zero or negative gutter will produce wrong window widths and padding. Add:
+```vim
+let gutter = max([0, g:cleave_gutter])
+```
+Use the validated value throughout instead of reading the global directly in downstream functions.
+
+### 3. Unset `scrollbind` on cleanup
+`setup_windows` sets `scrollbind` on both left and right windows, but neither `undo_cleave` nor `join_buffers` unsets it. After joining/undoing, the original buffer window retains `scrollbind`, which silently breaks normal scrolling if other splits exist. Add `setlocal noscrollbind` before switching back to the original buffer in both cleanup paths.
+
+### 4. Clean up text properties on undo/join
+`set_text_properties` creates a global prop type `cleave_paragraph_start` and adds props to the left buffer. Neither `undo_cleave` nor `join_buffers` removes the prop type. After cleanup the type lingers, and a second cleave hits the `E969` catch silently. Fix:
+- Call `prop_remove({'type': ..., 'bufnr': left_bufnr, 'all': 1})` before deleting buffers
+- Call `prop_type_delete('cleave_paragraph_start')` after buffer deletion (guarded with `has('textprop')`)
+
+### 5. Guard all text property paths with `has('textprop')`
+`split_buffer` unconditionally calls `set_text_properties()` at line ~243. If Vim lacks `textprop` support, `set_text_properties` returns early but `split_buffer` doesn't know. Guard the call:
+```vim
+if has('textprop')
+    call cleave#set_text_properties()
+endif
+```
+Similarly guard the call in `reflow_left_buffer`.
+
+### 6. Handle `win_gotoid` failures
+`setup_windows`, `undo_cleave`, and `join_buffers` all call `win_gotoid` without checking its return value. If the window was closed externally, the function returns 0 and subsequent commands operate on the wrong window. Wrap each call:
+```vim
+if !win_gotoid(win_id)
+    echoerr "Cleave: Expected window no longer exists."
+    return
+endif
+```
+
+### 7. Add `BufWipeout` autocommand to clear stale state
+If a user manually closes (`:bwipeout`) a left or right buffer, `s:cleave_*` variables still point to dead buffers. Every subsequent command will hit the fallback scan in `s:get_cleave_buffers`. Add an autocommand in `split_buffer` after buffer creation:
+```vim
+augroup CleaveCleanup
+    autocmd!
+    execute 'autocmd BufWipeout <buffer=' . left_bufnr . '> call s:clear_cleave_buffers()'
+    execute 'autocmd BufWipeout <buffer=' . right_bufnr . '> call s:clear_cleave_buffers()'
+augroup END
+```
+
+### 8. Prevent double-cleave
+Nothing stops a user from running `:Cleave` while already in a cleaved buffer, which creates nested cleave state and corrupts `s:cleave_*` variables. At the top of `split_buffer`, check:
+```vim
+if s:validate_cleave_buffers()
+    echoerr "Cleave: Already in a cleave session. Use :CleaveUndo or :CleaveJoin first."
+    return
+endif
+```
+
+### 9. Use `undojoin` for buffer writes
+`join_buffers` calls `deletebufline` then `setbufline` on the original buffer, creating two undo entries for one logical operation. Prefix with `undojoin` so the user can undo the join in a single step:
+```vim
+undojoin | call deletebufline(original_bufnr, 1, '$')
+undojoin | call setbufline(original_bufnr, 1, combined_lines)
+```
+
+### 10. Sync buffer options from original to temp buffers
+`create_buffers` sets `buftype=nofile` but doesn't propagate `tabstop`, `expandtab`, `shiftwidth`, or `wrap` from the original. This causes reflow and display width calculations to use wrong values (especially `tabstop` which affects virtual column math). After buffer creation, sync:
+```vim
+for opt in ['tabstop', 'shiftwidth', 'expandtab']
+    call setbufvar(left_bufnr, '&' . opt, getbufvar(original_bufnr, '&' . opt))
+    call setbufvar(right_bufnr, '&' . opt, getbufvar(original_bufnr, '&' . opt))
+endfor
+```
+
+## Possible Improvements
+
+### Robustness
+- Validate `g:cleave_gutter` type and range (reject 0/negative values)
+- Guard all text property callers with `has('textprop')`, not just some
+- Handle `win_gotoid` failures instead of ignoring return value
+- Add `BufWipeout` autocommand to clear `s:cleave_*` state when buffers are killed manually
+- Unset `scrollbind` on left/right windows during `CleaveUndo` and `join_buffers` cleanup
+- Namespace `prop_type_add` names and clean up prop types on undo
+
+### Code Quality
+- Remove remaining debug `echomsg` calls (e.g., "Debug: Loading unloaded buffer" in join_buffers, reflow debug logs)
+- Replace `s:get_cleave_buffers` buffer scan with direct lookups from stored `s:cleave_*` bufnrs
+- Use `undojoin` before `setbufline`/`deletebufline` sequences to avoid spamming undo history
+- Set filetype consistently on both left and right buffers in `create_buffers`
+- Sync relevant options (`wrap`, `list`, `tabstop`, `expandtab`) from original buffer to temp buffers
+
+### Reflow
+- Preserve intentional leading whitespace/indent during reflow instead of trimming
+- Improve paragraph detection to handle list items, code blocks, and indented content
+- Make `restore_paragraph_alignment` less dependent on left-context heuristics
+
+### Multibyte (partially addressed in `multibyte_support` branch)
+- `split_content` now uses virtual column splitting — verify edge cases with combining characters and zero-width joiners
+- Verify window resize formula (`cleave_col - 2 + foldcolumn`) is correct across different multibyte content widths
+- Consider performance of `vcol_to_byte` / `virtual_strpart` on very long lines (current implementation is O(n) per call)
+
+### Testing
+- Integrate multibyte test suites into the main test runner (`test/test_reflow.vim` or `test/test_reflow_simple.sh`)
+- Add integration tests that exercise the full cleave/edit/join round-trip with multibyte content
+- Add regression tests for `set_textwidth_to_longest_line` off-by-one (issue: ignores last line)
