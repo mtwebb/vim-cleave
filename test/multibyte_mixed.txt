@@ -1,0 +1,47 @@
+vim: cc=50 tw=45
+Mixed character type test file combining all character types.
+
+ASCII + Unicode: Hello café with résumé
+ASCII + CJK: Programming 编程 プログラミング 프로그래밍
+ASCII + Emoji: Code 💻 Debug 🐛 Deploy 🚀
+
+Unicode + CJK: café 中文 naïve 日本語 résumé 한국어
+Unicode + Emoji: Mathematical ∑ symbols 🔢 and arrows ↔️
+CJK + Emoji: 中文 🇨🇳 日本語 🇯🇵 한국어 🇰🇷
+
+All types mixed: Hello 👋 café 中文 ∑ symbols 🎯
+Complex line: Programming 💻 in 中文 with café ☕ and math ∑∏∫
+
+Tab mixed content:
+ASCII	Unicode	CJK	Emoji
+Hello	café	中文	👋
+World	résumé	日本語	🌍
+Code	naïve	한국어	💻
+
+Very long mixed line that should test wrapping: This line contains ASCII text, café and résumé (Unicode), 中文字符 (CJK), and emoji 🎯🌟✨ all together in one long sentence that exceeds the column width.
+
+Edge cases:
+Empty line above and below
+
+Single character lines:
+A
+中
+🎯
+∑
+
+Whitespace variations:
+   Leading spaces with 中文
+	Leading tab with emoji 🎯
+Trailing spaces with Unicode café   
+Mixed    spacing    with    中文    characters
+
+Real-world example:
+// JavaScript function with mixed content
+function processUser(name, age) {
+	// Handle international names like José, 田中, 김철수
+	if (name.includes('中文') || name.includes('한국어')) {
+		console.log('Processing CJK name: ' + name + ' 🌏');
+		return { status: 'success', message: '处理成功 ✅' };
+	}
+	return { status: 'pending', message: 'Processing... ⏳' };
+}

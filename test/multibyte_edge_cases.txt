@@ -1,0 +1,81 @@
+vim: cc=30 tw=25
+Edge cases for virtual column testing.
+
+Empty lines:
+
+
+
+Lines with only whitespace:
+   
+	
+    	    
+
+Single character per line:
+A
+中
+🎯
+∑
+	
+
+Very short lines:
+Hi
+OK
+中
+🎯
+
+Extremely long single word (no spaces):
+Supercalifragilisticexpialidocious
+这是一个非常长的中文词汇没有空格分隔符
+🎯🌟✨💫⭐🔥💥🌈🦄🎪🎭🎨🎪🎡🎢🎠🎪
+
+Lines with only punctuation:
+!!!
+???
+...
+,,,
+;;;
+
+Lines with only symbols:
+@#$%^&*
+∑∏∫∂∇∞
+←→↑↓↔↕
+
+Mixed punctuation and symbols:
+Hello, 世界! How are you? 😊
+Question: 什么是编程? Answer: Programming! 💻
+
+Zero-width characters (if supported):
+Combining characters: a̋ e̋ i̋ ő ů
+Zero-width joiner sequences: 👨‍💻 👩‍🔬
+
+Boundary conditions:
+Line exactly at column limit: 1234567890123456789012345
+Line one char over limit: 12345678901234567890123456
+Line with CJK at limit: 中文字符测试12345678901234567890
+
+Tab edge cases:
+	(single tab)
+		(double tab)
+	中文	(tab with CJK)
+	🎯	(tab with emoji)
+
+Newline variations:
+Line ending with space 
+Line ending with tab	
+Line ending with CJK 中文
+Line ending with emoji 🎯
+
+Control character tests (if applicable):
+Line with \n newline
+Line with \t tab
+Line with \r carriage return
+
+Unicode normalization tests:
+NFC: é (single character)
+NFD: é (e + combining acute)
+Café vs Café (different encodings)
+
+Right-to-left text (if supported):
+Arabic: مرحبا بالعالم
+Hebrew: שלום עולם
+Mixed LTR/RTL: Hello مرحبا World

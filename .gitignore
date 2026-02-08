@@ -8,3 +8,5 @@ notes.md
 plan.md
 TODO.md
 issues.md
+*_results.txt
+test_load_plugin.vim

@@ -1,0 +1,25 @@
+vim: cc=40 tw=35
+CJK (Chinese, Japanese, Korean) test file.
+
+Chinese (Simplified): 这是一个中文测试文件
+Chinese (Traditional): 這是一個中文測試文件
+Japanese Hiragana: これはひらがなのテストです
+Japanese Katakana: コレハカタカナノテストデス
+Japanese Kanji: 日本語の漢字テストファイル
+Korean Hangul: 한국어 테스트 파일입니다
+
+Mixed CJK content:
+中文 Japanese 한국어 mixed together
+一二三四五六七八九十
+あいうえおかきくけこ
+アイウエオカキクケコ
+가나다라마바사아자차
+
+Long CJK line: 这是一个很长的中文句子，用来测试文本换行功能是否能够正确处理中日韩字符的显示宽度计算问题。
+
+Technical terms in CJK:
+计算机 (computer)
+プログラミング (programming)  
+소프트웨어 (software)
+
+Numbers with CJK: 第1章 第2節 3番目

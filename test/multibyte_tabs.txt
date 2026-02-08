@@ -1,0 +1,37 @@
+vim: cc=40 tw=35 ts=4
+Tab character test file with various tabstop settings.
+
+Basic tabs:
+Column1	Column2	Column3	Column4
+Short	Medium	VeryLongColumn	End
+A	B	C	D
+
+Mixed tabs and spaces:
+	Indented with tab
+    Indented with 4 spaces
+	Tab	then	multiple	tabs
+    Space    then    multiple    spaces
+
+Code-like content with tabs:
+function example() {
+	if (condition) {
+		return value;
+	}
+}
+
+def python_function():
+	if condition:
+		return value
+
+Tab alignment test:
+Name	Age	City	Country
+John	25	NYC	USA
+Alice	30	London	UK
+Bob	35	Tokyo	Japan
+
+Very long line with tabs:	This line contains tabs and should test how tab characters are handled during text wrapping operations.
+
+Mixed content with tabs and CJK:
+名前	年齢	都市	国
+田中	25	東京	日本
+김철수	30	서울	한국

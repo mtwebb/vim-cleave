@@ -3,9 +3,9 @@ if exists("b:did_ftplugin")
 endif
 let b:did_ftplugin = 1
 
-if !exists('g:cleaveleftwidth')
-    let g:cleaveleftwidth = &tw+&wrapmargin
+if !exists('g:cleave_left_width')
+    let g:cleave_left_width = &tw+&wrapmargin
 endif
 
-execute printf('syntax match Note ''\%%>%dv.\+''', g:cleaveleftwidth)
+execute printf('syntax match Note ''\%%>%dv.\+''', g:cleave_left_width)
 hi link Note Identifier

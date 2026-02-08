@@ -1,0 +1,21 @@
+vim: cc=40 tw=35
+Emoji and symbol test file 🎯
+
+Basic emoji: 😀 😃 😄 😁 😆 😅 😂 🤣
+Animals: 🐶 🐱 🐭 🐹 🐰 🦊 🐻 🐼
+Food: 🍎 🍌 🍇 🍓 🥝 🍕 🍔 🌮
+Activities: ⚽ 🏀 🏈 ⚾ 🎾 🏐 🏉 🎱
+
+Complex emoji sequences:
+👨‍💻 (man technologist)
+👩‍🔬 (woman scientist)  
+👨‍👩‍👧‍👦 (family)
+🏳️‍🌈 (rainbow flag)
+
+Emoji with text: Hello 👋 World 🌍
+Mixed line: Code 💻 + Coffee ☕ = Happy 😊
+
+Stars and symbols: ⭐ 🌟 ✨ 💫 ⚡ 🔥
+Hearts: ❤️ 💙 💚 💛 🧡 💜 🖤 🤍
+
+Very long emoji line: 🎉🎊🎈🎁🎂🍰🧁🍭🍬🍫🍩🍪🎯🎲🎮🕹️🎸🎹🎤🎧🎵🎶🎼🎨🖌️🖍️📝✏️📏📐📌📍📎🖇️📋📊📈📉📇📅📆🗓️📁📂🗂️📄📃📑📜📋📊📈📉
