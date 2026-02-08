@@ -443,10 +443,27 @@ function! TestRoundTripConversions()
     \ ]
     
     for test_string in test_strings
+        " Build a set of valid vcol start positions (character boundaries)
+        let valid_vcols = {}
+        let cur_vcol = 1
+        let char_idx = 0
+        let string_char_len = strchars(test_string)
+        while char_idx < string_char_len
+            let valid_vcols[cur_vcol] = 1
+            let char_str = strcharpart(test_string, char_idx, 1)
+            if char_str == "\t"
+                let cur_vcol += &tabstop - ((cur_vcol - 1) % &tabstop)
+            else
+                let cur_vcol += strdisplaywidth(char_str)
+            endif
+            let char_idx += 1
+        endwhile
+        let valid_vcols[cur_vcol] = 1
+
         let string_width = strdisplaywidth(test_string)
         for vcol in range(1, string_width + 2)
             let byte_pos = cleave#vcol_to_byte(test_string, vcol)
-            if byte_pos != -1
+            if byte_pos != -1 && has_key(valid_vcols, vcol)
                 let back_to_vcol = cleave#byte_to_vcol(test_string, byte_pos)
                 let total += 1
                 let passed += AssertEqual(vcol, back_to_vcol, "Round-trip: '" . test_string . "' vcol " . vcol)

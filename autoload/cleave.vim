@@ -363,7 +363,7 @@ function! cleave#join_buffers()
     "cleave col is missing gutter offset
     let current_bufnr = bufnr('%')
     let cleave_col = getbufvar(current_bufnr, 'cleave_col', -1)
-    echomsg current_bufnr . "cleave_col:" . cleave_col
+
     if cleave_col == -1
         echoerr "Cleave: Missing cleave column information."
         return
