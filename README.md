@@ -111,6 +111,26 @@ Sets the number of spaces between the left and right content when joining buffer
 let g:cleave_gutter = 5
 ```
 
+### Keybinding Suggestions
+
+Fast paragraph shifting with Meta (Alt) keys:
+
+```vim
+nnoremap <M-k> :CleaveShiftParagraphUp<CR>
+nnoremap <M-j> :CleaveShiftParagraphDown<CR>
+nnoremap <M-K> :CleaveShiftParagraphBothUp<CR>
+nnoremap <M-J> :CleaveShiftParagraphBothDown<CR>
+```
+
+If your terminal does not pass Meta, these bracket mappings are easy to repeat:
+
+```vim
+nnoremap [p :CleaveShiftParagraphUp<CR>
+nnoremap ]p :CleaveShiftParagraphDown<CR>
+nnoremap [P :CleaveShiftParagraphBothUp<CR>
+nnoremap ]P :CleaveShiftParagraphBothDown<CR>
+```
+
 ## Use Cases
 
 - **Documentation Editing**: Split documentation with comments/annotations
