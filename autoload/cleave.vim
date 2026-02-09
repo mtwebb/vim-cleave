@@ -107,6 +107,37 @@ function! s:extract_paragraphs_ctx(lines, left_lines)
     return paragraphs
 endfunction
 
+function! s:build_paragraph_placement(paragraphs, target_line_numbers)
+    let new_buffer_lines = []
+    let current_line_num = 1
+    let actual_positions = []
+
+    for i in range(len(a:paragraphs))
+        let target_line = (i < len(a:target_line_numbers)) ? a:target_line_numbers[i] : 1
+        let paragraph = a:paragraphs[i]
+        let actual_position = max([target_line, current_line_num])
+
+        while current_line_num < actual_position
+            call add(new_buffer_lines, '')
+            let current_line_num += 1
+        endwhile
+
+        call add(actual_positions, actual_position)
+
+        for para_line in paragraph
+            call add(new_buffer_lines, para_line)
+            let current_line_num += 1
+        endfor
+
+        if i < len(a:paragraphs) - 1
+            call add(new_buffer_lines, '')
+            let current_line_num += 1
+        endif
+    endfor
+
+    return {'lines': new_buffer_lines, 'positions': actual_positions}
+endfunction
+
 " ============================================================================
 " Buffer / Window Helpers
 " ============================================================================
@@ -826,9 +857,9 @@ function! cleave#toggle_paragraph_highlight()
     echomsg "Cleave: Paragraph highlight changed to " . new_group
 endfunction
 
-function! cleave#place_right_paragraphs_at_lines(target_line_numbers)
+function! cleave#place_right_paragraphs_at_lines(target_line_numbers, ...)
     " Places paragraphs from the right buffer at specified line numbers
-    " If a paragraph would overlap with a previously placed paragraph, 
+    " If a paragraph would overlap with a previously placed paragraph,
     " slides it down to maintain one blank line separation
     " 
     " Args: target_line_numbers - array of 1-based line numbers where paragraphs should be placed
@@ -845,47 +876,16 @@ function! cleave#place_right_paragraphs_at_lines(target_line_numbers)
     endif
     
     let current_lines = getbufline(right_bufnr, 1, '$')
-    let extracted = s:extract_paragraphs(current_lines)
+    if a:0 > 0 && !empty(a:1)
+        let extracted = s:extract_paragraphs_ctx(current_lines, a:1)
+    else
+        let extracted = s:extract_paragraphs(current_lines)
+    endif
     let paragraphs = map(copy(extracted), 'v:val.content')
 
-    " Step 2: Place paragraphs at target positions with conflict resolution
-    let new_buffer_lines = []
-    let current_line_num = 1
-    let actual_positions = []
-    
-    for i in range(len(paragraphs))
-        " Get target line for this paragraph (use 1 if array is shorter)
-        let target_line = (i < len(a:target_line_numbers)) ? a:target_line_numbers[i] : 1
-        let paragraph = paragraphs[i]
-        let para_length = len(paragraph)
-        
-        " Determine actual placement position
-        let actual_position = max([target_line, current_line_num])
-        
-        " Add empty lines to reach the actual position
-        while current_line_num < actual_position
-            call add(new_buffer_lines, '')
-            let current_line_num += 1
-        endwhile
-        
-        " Record where this paragraph actually starts
-        call add(actual_positions, actual_position)
-        
-        " Add the paragraph lines
-        for para_line in paragraph
-            call add(new_buffer_lines, para_line)
-            let current_line_num += 1
-        endfor
-        
-        " Ensure at least one blank line after paragraph (except for last paragraph)
-        if i < len(paragraphs) - 1
-            call add(new_buffer_lines, '')
-            let current_line_num += 1
-        endif
-    endfor
-    
-    call s:replace_buffer_lines(right_bufnr, new_buffer_lines)
-    return actual_positions
+    let placement = s:build_paragraph_placement(paragraphs, a:target_line_numbers)
+    call s:replace_buffer_lines(right_bufnr, placement.lines)
+    return placement.positions
 endfunction
 
 function! cleave#align_right_to_left_paragraphs()
@@ -899,8 +899,217 @@ function! cleave#align_right_to_left_paragraphs()
         return
     endif
     
-    let actual_positions = cleave#place_right_paragraphs_at_lines(left_para_lines)
+    let left_lines = getbufline(left_bufnr, 1, '$')
+    let actual_positions = cleave#place_right_paragraphs_at_lines(left_para_lines, left_lines)
     echomsg "Cleave: Aligned right buffer paragraphs at lines: " . string(actual_positions)
+endfunction
+
+function! cleave#shift_paragraph(direction)
+    let [original_bufnr, left_bufnr, right_bufnr] = s:resolve_buffers()
+    if right_bufnr == -1 || left_bufnr == -1
+        echoerr "Cleave: Not a cleave buffer or buffers not found."
+        return
+    endif
+
+    let current_info = getbufvar(bufnr('%'), 'cleave', {})
+    let current_side = get(current_info, 'side', '')
+    if empty(current_info) || empty(current_side)
+        echoerr "Cleave: Current buffer is not a cleave buffer (.left or .right)"
+        return
+    endif
+
+    if a:direction ==# 'up'
+        let move = -1
+    elseif a:direction ==# 'down'
+        let move = 1
+    else
+        echoerr "Cleave: Invalid shift direction"
+        return
+    endif
+
+    let cursor_line = line('.')
+    let right_lines = getbufline(right_bufnr, 1, '$')
+    let left_lines = getbufline(left_bufnr, 1, '$')
+    let current_lines = current_side ==# 'right' ? right_lines : left_lines
+
+    if cursor_line < 1 || cursor_line > len(current_lines)
+        echoerr "Cleave: Cursor out of range"
+        return
+    endif
+
+    let cursor_line_text = current_lines[cursor_line - 1]
+    let anchor_lines = []
+    if current_side ==# 'left'
+        let anchor_lines = cleave#get_left_buffer_paragraph_lines()
+        if empty(anchor_lines)
+            echoerr "Cleave: No paragraph anchors found"
+            return
+        endif
+    endif
+
+    if trim(cursor_line_text) ==# ''
+        if current_side ==# 'left' && index(anchor_lines, cursor_line) != -1
+            " Allow shifting when cursor is on an anchored empty line.
+        else
+            echoerr "Cleave: Cursor is not on a paragraph line"
+            return
+        endif
+    endif
+
+    let extracted = s:extract_paragraphs(right_lines)
+    if empty(extracted)
+        echoerr "Cleave: No paragraphs found"
+        return
+    endif
+
+    let para_starts = []
+    let para_index = -1
+    let cursor_offset = 0
+    let cursor_column_offset = 0
+
+    for i in range(len(extracted))
+        let start_line = extracted[i].start
+        let para_len = len(extracted[i].content)
+        call add(para_starts, start_line)
+        if current_side ==# 'right' && cursor_line >= start_line && cursor_line < start_line + para_len
+            let para_index = i
+            let cursor_offset = cursor_line - start_line
+            let cursor_column_offset = col('.') - 1
+        endif
+    endfor
+
+    if current_side ==# 'left'
+        for i in range(len(anchor_lines))
+            if anchor_lines[i] <= cursor_line
+                let para_index = i
+            endif
+        endfor
+    endif
+
+    if para_index == -1
+        echoerr "Cleave: Cursor is not in a paragraph"
+        return
+    endif
+
+    if para_index >= len(para_starts)
+        echoerr "Cleave: Paragraph index out of range"
+        return
+    endif
+
+    let target_starts = copy(para_starts)
+    let target_starts[para_index] = max([1, target_starts[para_index] + move])
+    let actual_positions = cleave#place_right_paragraphs_at_lines(target_starts)
+    if empty(actual_positions)
+        return
+    endif
+
+    call cleave#set_text_properties()
+
+    if current_side ==# 'right' && para_index < len(actual_positions)
+        let new_line = actual_positions[para_index] + cursor_offset
+        let new_line_text = get(getbufline(right_bufnr, new_line, new_line), 0, '')
+        let new_col = min([cursor_column_offset + 1, len(new_line_text) + 1])
+        call cursor(max([1, new_line]), new_col)
+    endif
+endfunction
+
+function! cleave#shift_paragraph_both(direction)
+    let [original_bufnr, left_bufnr, right_bufnr] = s:resolve_buffers()
+    if right_bufnr == -1 || left_bufnr == -1
+        echoerr "Cleave: Not a cleave buffer or buffers not found."
+        return
+    endif
+
+    let current_info = getbufvar(bufnr('%'), 'cleave', {})
+    let current_side = get(current_info, 'side', '')
+    if empty(current_info) || empty(current_side)
+        echoerr "Cleave: Current buffer is not a cleave buffer (.left or .right)"
+        return
+    endif
+
+    if a:direction ==# 'up'
+        let move = -1
+    elseif a:direction ==# 'down'
+        let move = 1
+    else
+        echoerr "Cleave: Invalid shift direction"
+        return
+    endif
+
+    let cursor_line = line('.')
+    let right_lines = getbufline(right_bufnr, 1, '$')
+    let left_lines = getbufline(left_bufnr, 1, '$')
+    let current_lines = current_side ==# 'right' ? right_lines : left_lines
+
+    if cursor_line < 1 || cursor_line > len(current_lines)
+        echoerr "Cleave: Cursor out of range"
+        return
+    endif
+
+    let cursor_line_text = current_lines[cursor_line - 1]
+    let anchor_lines = cleave#get_left_buffer_paragraph_lines()
+    if empty(anchor_lines)
+        echoerr "Cleave: No paragraph anchors found"
+        return
+    endif
+
+    if trim(cursor_line_text) ==# ''
+        if current_side ==# 'left' && index(anchor_lines, cursor_line) != -1
+            " Allow shifting when cursor is on an anchored empty line.
+        else
+            echoerr "Cleave: Cursor is not on a paragraph line"
+            return
+        endif
+    endif
+
+    let extracted_left = s:extract_paragraphs(left_lines)
+    let extracted_right = s:extract_paragraphs_ctx(right_lines, left_lines)
+    if empty(extracted_left) || empty(extracted_right)
+        echoerr "Cleave: No paragraphs found"
+        return
+    endif
+
+    let left_paragraphs = map(copy(extracted_left), 'v:val.content')
+    let right_paragraphs = map(copy(extracted_right), 'v:val.content')
+    let para_starts = map(copy(extracted_right), 'v:val.start')
+
+    let para_index = -1
+    if current_side ==# 'right'
+        for i in range(len(extracted_right))
+            let start_line = extracted_right[i].start
+            let para_len = len(extracted_right[i].content)
+            if cursor_line >= start_line && cursor_line < start_line + para_len
+                let para_index = i
+                break
+            endif
+        endfor
+    else
+        for i in range(len(anchor_lines))
+            if anchor_lines[i] <= cursor_line
+                let para_index = i
+            endif
+        endfor
+    endif
+
+    if para_index == -1
+        echoerr "Cleave: Cursor is not in a paragraph"
+        return
+    endif
+
+    if para_index >= len(para_starts) || para_index >= len(left_paragraphs)
+        echoerr "Cleave: Paragraph index out of range"
+        return
+    endif
+
+    let para_starts[para_index] = max([1, para_starts[para_index] + move])
+    let placement = s:build_paragraph_placement(right_paragraphs, para_starts)
+    call s:replace_buffer_lines(right_bufnr, placement.lines)
+
+    let right_positions = placement.positions
+    let left_placement = s:build_paragraph_placement(left_paragraphs, right_positions)
+    call s:replace_buffer_lines(left_bufnr, left_placement.lines)
+
+    call cleave#set_text_properties()
 endfunction
 
 function! cleave#wrap_paragraph(paragraph_lines, width)

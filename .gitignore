@@ -1,5 +1,8 @@
 *.swp
 *.swo
+*.swm
+*.swn
+*.swx
 AGENT.md
 AGENTS.md
 amp.md

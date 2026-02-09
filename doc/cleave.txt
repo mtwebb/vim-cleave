@@ -124,6 +124,72 @@ COMMANDS                                     *cleave-commands*
     This realigns the right buffer paragraphs to match the text property
     anchors placed thoughout the left buffer.
 
+*:CleaveShiftParagraphUp*                    *cleave-shift-up*
+    Moves the current paragraph up by one line in the right buffer and updates
+    the left-side anchor markers. This is used to fine-tune right-side
+    paragraph placement.
+
+    Notes:
+    - Works in either left or right buffer
+    - In the left buffer, the cursor must be on or below a paragraph anchor
+    - In the right buffer, the cursor must be on a paragraph line
+    - If the paragraph would overlap another, it is clamped by the standard
+      placement rules that keep paragraphs separated
+
+    Example: >
+        :CleaveShiftParagraphUp
+<
+    This shifts the paragraph under the cursor up by one line.
+
+*:CleaveShiftParagraphDown*                  *cleave-shift-down*
+    Moves the current paragraph down by one line in the right buffer and
+    updates the left-side anchor markers. This is used to fine-tune right-side
+    paragraph placement.
+
+    Notes:
+    - Works in either left or right buffer
+    - In the left buffer, the cursor must be on or below a paragraph anchor
+    - In the right buffer, the cursor must be on a paragraph line
+    - If the paragraph would overlap another, it is clamped by the standard
+      placement rules that keep paragraphs separated
+
+    Example: >
+        :CleaveShiftParagraphDown
+<
+    This shifts the paragraph under the cursor down by one line.
+
+*:CleaveShiftParagraphBothUp*                *cleave-shift-both-up*
+    Moves the current paragraph up by one line in both the left and right
+    buffers. This keeps the paragraph text aligned while shifting both sides
+    together.
+
+    Notes:
+    - Works in either left or right buffer
+    - In the left buffer, the cursor must be on or below a paragraph anchor
+    - In the right buffer, the cursor must be on a paragraph line
+    - The left paragraph content is moved to the new anchor position
+
+    Example: >
+        :CleaveShiftParagraphBothUp
+<
+    This shifts the paragraph under the cursor up by one line in both buffers.
+
+*:CleaveShiftParagraphBothDown*              *cleave-shift-both-down*
+    Moves the current paragraph down by one line in both the left and right
+    buffers. This keeps the paragraph text aligned while shifting both sides
+    together.
+
+    Notes:
+    - Works in either left or right buffer
+    - In the left buffer, the cursor must be on or below a paragraph anchor
+    - In the right buffer, the cursor must be on a paragraph line
+    - The left paragraph content is moved to the new anchor position
+
+    Example: >
+        :CleaveShiftParagraphBothDown
+<
+    This shifts the paragraph under the cursor down by one line in both buffers.
+
 *:CleaveSetProps*                            *cleave-setprops*
     Creates or updates text properties that mark paragraph start positions
     in the left buffer. These text properties serve as anchors for paragraph
@@ -196,9 +262,12 @@ Basic workflow: >
     
     " Reflow the left buffer to 60 characters
     :CleaveReflow 60
-    
+
     " Realign paragraphs after changing left buffer
     :CleaveAlign
+
+    " Shift a right paragraph to fine-tune alignment
+    :CleaveShiftParagraphDown
     
     " Rejoin the left and right buffers back together
     :CleaveJoin

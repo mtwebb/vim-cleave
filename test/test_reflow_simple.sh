@@ -29,7 +29,7 @@ echo "Reflow test completed successfully!"
 qa!
 VIMEOF
 
-vim -u NONE -s /tmp/test_reflow.vim
+vim -u NONE -es -S /tmp/test_reflow.vim
 
 # Clean up
 rm -f /tmp/test_content.txt

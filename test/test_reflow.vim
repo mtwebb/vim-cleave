@@ -1,5 +1,17 @@
 " Test script for CleaveReflow functionality
 
+function! AssertEqual(expected, actual, message)
+    if a:expected != a:actual
+        echomsg "FAIL: " . a:message
+        echomsg "  Expected: '" . a:expected . "'"
+        echomsg "  Actual: '" . a:actual . "'"
+        return 0
+    else
+        echomsg "PASS: " . a:message
+        return 1
+    endif
+endfunction
+
 function! TestReflowBasic()
     " Create test content
     new
@@ -94,6 +106,94 @@ function! TestReflowEdgeCases()
     echo "Edge cases test completed"
 endfunction
 
+function! TestShiftRightParagraph()
+    if !has('textprop')
+        echomsg "Skipping shift paragraph test: text properties unavailable"
+        return
+    endif
+
+    new
+    put =['Left column text.',
+        \ '',
+        \ 'Second left paragraph.']
+    1delete
+
+    call cursor(1, 20)
+    Cleave
+
+    wincmd l
+    call setline(1, ['First right paragraph line one.',
+        \ 'First right paragraph line two.',
+        \ '',
+        \ 'Second right paragraph starts here.',
+        \ 'Second right paragraph line two.'])
+
+    call cleave#set_text_properties()
+
+    call cursor(4, 5)
+    call cleave#shift_paragraph('up')
+
+    let right_lines = getline(1, '$')
+    let shifted_index = index(right_lines, 'Second right paragraph starts here.')
+    let expected_start = 3
+    call AssertEqual(expected_start, shifted_index + 1, 'Shift paragraph up')
+
+    wincmd h
+    let left_props = prop_list(1, {'bufnr': bufnr('%'), 'types': ['cleave_paragraph_start'], 'end_lnum': -1})
+    let prop_lines = map(copy(left_props), 'v:val.lnum')
+    call AssertEqual(3, prop_lines[1], 'Anchor moved with paragraph')
+
+    wincmd l
+    call cursor(3, 5)
+    call cleave#shift_paragraph('down')
+
+    let right_lines_after = getline(1, '$')
+    let shifted_index_down = index(right_lines_after, 'Second right paragraph starts here.')
+    call AssertEqual(4, shifted_index_down + 1, 'Shift paragraph down')
+
+    wincmd h
+    call cursor(3, 1)
+    call cleave#shift_paragraph('up')
+    let left_props_after = prop_list(1, {'bufnr': bufnr('%'), 'types': ['cleave_paragraph_start'], 'end_lnum': -1})
+    let prop_lines_after = map(copy(left_props_after), 'v:val.lnum')
+    call AssertEqual(3, prop_lines_after[1], 'Left buffer shift respected anchors')
+
+    wincmd l
+    call cursor(4, 1)
+    call cleave#shift_paragraph_both('down')
+    let right_lines_both = getline(1, '$')
+    let both_index = index(right_lines_both, 'Second right paragraph starts here.')
+    call AssertEqual(5, both_index + 1, 'Shift both paragraphs down')
+
+    wincmd h
+    let left_lines_both = getline(1, '$')
+    call AssertEqual('Second left paragraph.', left_lines_both[4], 'Left paragraph moved with right')
+
+    wincmd l
+    call cursor(2, 1)
+    call cleave#shift_paragraph('up')
+    let right_lines_shift = getline(1, '$')
+    let shifted_first = index(right_lines_shift, 'First right paragraph line one.')
+    call AssertEqual(1, shifted_first + 1, 'Shift respects left anchor spacing')
+
+    wincmd h
+    call setline(1, ['Left column text.',
+        \ '',
+        \ 'Second left paragraph.'])
+    call cleave#set_text_properties()
+
+    wincmd l
+    call cursor(4, 1)
+    call cleave#shift_paragraph('up')
+    let right_lines_blank = getline(1, '$')
+    let blank_index = index(right_lines_blank, '')
+    call AssertEqual(3, blank_index + 1, 'Shift does not insert blank lines')
+
+    CleaveUndo
+    bdelete!
+    echomsg "Shift paragraph test completed"
+endfunction
+
 function! RunReflowTests()
     echo "Starting reflow tests..."
     echo "========================"
@@ -103,7 +203,9 @@ function! RunReflowTests()
     call TestReflowRightBuffer()
     echo ""
     call TestReflowEdgeCases()
-    
+    echo ""
+    call TestShiftRightParagraph()
+
     echo "========================"
     echo "All reflow tests completed"
 endfunction
