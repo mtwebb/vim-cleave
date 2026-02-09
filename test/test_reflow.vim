@@ -159,17 +159,6 @@ function! TestShiftRightParagraph()
     call AssertEqual(3, prop_lines_after[1], 'Left buffer shift respected anchors')
 
     wincmd l
-    call cursor(4, 1)
-    call cleave#shift_paragraph_both('down')
-    let right_lines_both = getline(1, '$')
-    let both_index = index(right_lines_both, 'Second right paragraph starts here.')
-    call AssertEqual(5, both_index + 1, 'Shift both paragraphs down')
-
-    wincmd h
-    let left_lines_both = getline(1, '$')
-    call AssertEqual('Second left paragraph.', left_lines_both[4], 'Left paragraph moved with right')
-
-    wincmd l
     call cursor(2, 1)
     call cleave#shift_paragraph('up')
     let right_lines_shift = getline(1, '$')
@@ -183,11 +172,40 @@ function! TestShiftRightParagraph()
     call cleave#set_text_properties()
 
     wincmd l
+    let right_before = getline(1, '$')
+    let right_positions_before = []
+    for i in range(len(right_before))
+        if !empty(right_before[i]) && (i == 0 || empty(right_before[i - 1]))
+            call add(right_positions_before, i + 1)
+        endif
+    endfor
+
+    wincmd l
     call cursor(4, 1)
     call cleave#shift_paragraph('up')
     let right_lines_blank = getline(1, '$')
     let blank_index = index(right_lines_blank, '')
     call AssertEqual(3, blank_index + 1, 'Shift does not insert blank lines')
+
+    let right_positions_after = []
+    for i in range(len(right_lines_blank))
+        if !empty(right_lines_blank[i]) && (i == 0 || empty(right_lines_blank[i - 1]))
+            call add(right_positions_after, i + 1)
+        endif
+    endfor
+    call AssertEqual(string(right_positions_before), string(right_positions_after), 'Right positions unchanged when shifting left')
+
+    call cursor(1, 1)
+    let right_positions_before_down = copy(right_positions_after)
+    call cleave#shift_paragraph('down')
+    let right_lines_after_down = getline(1, '$')
+    let right_positions_after_down = []
+    for i in range(len(right_lines_after_down))
+        if !empty(right_lines_after_down[i]) && (i == 0 || empty(right_lines_after_down[i - 1]))
+            call add(right_positions_after_down, i + 1)
+        endif
+    endfor
+    call AssertEqual(string(right_positions_before_down), string(right_positions_after_down), 'Right positions unchanged when shift blocked')
 
     CleaveUndo
     bdelete!

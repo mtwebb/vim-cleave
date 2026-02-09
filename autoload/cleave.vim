@@ -928,60 +928,43 @@ function! cleave#shift_paragraph(direction)
     endif
 
     let cursor_line = line('.')
-    let right_lines = getbufline(right_bufnr, 1, '$')
-    let left_lines = getbufline(left_bufnr, 1, '$')
-    let current_lines = current_side ==# 'right' ? right_lines : left_lines
+    let cursor_col = col('.')
+    let target_bufnr = current_side ==# 'right' ? right_bufnr : left_bufnr
+    let target_lines = getbufline(target_bufnr, 1, '$')
 
-    if cursor_line < 1 || cursor_line > len(current_lines)
+    if cursor_line < 1 || cursor_line > len(target_lines)
         echoerr "Cleave: Cursor out of range"
         return
     endif
 
-    let cursor_line_text = current_lines[cursor_line - 1]
-    let anchor_lines = []
-    if current_side ==# 'left'
-        let anchor_lines = cleave#get_left_buffer_paragraph_lines()
-        if empty(anchor_lines)
-            echoerr "Cleave: No paragraph anchors found"
-            return
-        endif
-    endif
-
-    if trim(cursor_line_text) ==# ''
-        if current_side ==# 'left' && index(anchor_lines, cursor_line) != -1
-            " Allow shifting when cursor is on an anchored empty line.
-        else
-            echoerr "Cleave: Cursor is not on a paragraph line"
-            return
-        endif
-    endif
-
-    let extracted = s:extract_paragraphs(right_lines)
+    let extracted = s:extract_paragraphs(target_lines)
     if empty(extracted)
         echoerr "Cleave: No paragraphs found"
         return
     endif
 
     let para_starts = []
+    let para_lengths = []
     let para_index = -1
     let cursor_offset = 0
-    let cursor_column_offset = 0
+    let cursor_column_offset = col('.') - 1
 
     for i in range(len(extracted))
         let start_line = extracted[i].start
         let para_len = len(extracted[i].content)
         call add(para_starts, start_line)
-        if current_side ==# 'right' && cursor_line >= start_line && cursor_line < start_line + para_len
+        call add(para_lengths, para_len)
+        if cursor_line >= start_line && cursor_line < start_line + para_len
             let para_index = i
             let cursor_offset = cursor_line - start_line
-            let cursor_column_offset = col('.') - 1
         endif
     endfor
 
-    if current_side ==# 'left'
-        for i in range(len(anchor_lines))
-            if anchor_lines[i] <= cursor_line
+    if para_index == -1
+        for i in range(len(para_starts))
+            if para_starts[i] < cursor_line
                 let para_index = i
+                let cursor_offset = min([cursor_line - para_starts[i], para_lengths[i] - 1])
             endif
         endfor
     endif
@@ -991,125 +974,38 @@ function! cleave#shift_paragraph(direction)
         return
     endif
 
-    if para_index >= len(para_starts)
-        echoerr "Cleave: Paragraph index out of range"
+    let candidate_start = para_starts[para_index] + move
+    if candidate_start < 1
         return
     endif
 
-    let target_starts = copy(para_starts)
-    let target_starts[para_index] = max([1, target_starts[para_index] + move])
-    let actual_positions = cleave#place_right_paragraphs_at_lines(target_starts)
-    if empty(actual_positions)
-        return
+    if move < 0 && para_index > 0
+        let prev_end = para_starts[para_index - 1] + para_lengths[para_index - 1] - 1
+        if candidate_start <= prev_end + 1
+            return
+        endif
     endif
-
-    call cleave#set_text_properties()
-
-    if current_side ==# 'right' && para_index < len(actual_positions)
-        let new_line = actual_positions[para_index] + cursor_offset
-        let new_line_text = get(getbufline(right_bufnr, new_line, new_line), 0, '')
-        let new_col = min([cursor_column_offset + 1, len(new_line_text) + 1])
-        call cursor(max([1, new_line]), new_col)
-    endif
-endfunction
-
-function! cleave#shift_paragraph_both(direction)
-    let [original_bufnr, left_bufnr, right_bufnr] = s:resolve_buffers()
-    if right_bufnr == -1 || left_bufnr == -1
-        echoerr "Cleave: Not a cleave buffer or buffers not found."
-        return
-    endif
-
-    let current_info = getbufvar(bufnr('%'), 'cleave', {})
-    let current_side = get(current_info, 'side', '')
-    if empty(current_info) || empty(current_side)
-        echoerr "Cleave: Current buffer is not a cleave buffer (.left or .right)"
-        return
-    endif
-
-    if a:direction ==# 'up'
-        let move = -1
-    elseif a:direction ==# 'down'
-        let move = 1
-    else
-        echoerr "Cleave: Invalid shift direction"
-        return
-    endif
-
-    let cursor_line = line('.')
-    let right_lines = getbufline(right_bufnr, 1, '$')
-    let left_lines = getbufline(left_bufnr, 1, '$')
-    let current_lines = current_side ==# 'right' ? right_lines : left_lines
-
-    if cursor_line < 1 || cursor_line > len(current_lines)
-        echoerr "Cleave: Cursor out of range"
-        return
-    endif
-
-    let cursor_line_text = current_lines[cursor_line - 1]
-    let anchor_lines = cleave#get_left_buffer_paragraph_lines()
-    if empty(anchor_lines)
-        echoerr "Cleave: No paragraph anchors found"
-        return
-    endif
-
-    if trim(cursor_line_text) ==# ''
-        if current_side ==# 'left' && index(anchor_lines, cursor_line) != -1
-            " Allow shifting when cursor is on an anchored empty line.
-        else
-            echoerr "Cleave: Cursor is not on a paragraph line"
+    if move > 0 && para_index < len(para_starts) - 1
+        let next_start = para_starts[para_index + 1]
+        if (candidate_start + para_lengths[para_index] - 1) >= next_start - 1
             return
         endif
     endif
 
-    let extracted_left = s:extract_paragraphs(left_lines)
-    let extracted_right = s:extract_paragraphs_ctx(right_lines, left_lines)
-    if empty(extracted_left) || empty(extracted_right)
-        echoerr "Cleave: No paragraphs found"
-        return
-    endif
-
-    let left_paragraphs = map(copy(extracted_left), 'v:val.content')
-    let right_paragraphs = map(copy(extracted_right), 'v:val.content')
-    let para_starts = map(copy(extracted_right), 'v:val.start')
-
-    let para_index = -1
-    if current_side ==# 'right'
-        for i in range(len(extracted_right))
-            let start_line = extracted_right[i].start
-            let para_len = len(extracted_right[i].content)
-            if cursor_line >= start_line && cursor_line < start_line + para_len
-                let para_index = i
-                break
-            endif
-        endfor
-    else
-        for i in range(len(anchor_lines))
-            if anchor_lines[i] <= cursor_line
-                let para_index = i
-            endif
-        endfor
-    endif
-
-    if para_index == -1
-        echoerr "Cleave: Cursor is not in a paragraph"
-        return
-    endif
-
-    if para_index >= len(para_starts) || para_index >= len(left_paragraphs)
-        echoerr "Cleave: Paragraph index out of range"
-        return
-    endif
-
-    let para_starts[para_index] = max([1, para_starts[para_index] + move])
-    let placement = s:build_paragraph_placement(right_paragraphs, para_starts)
-    call s:replace_buffer_lines(right_bufnr, placement.lines)
-
-    let right_positions = placement.positions
-    let left_placement = s:build_paragraph_placement(left_paragraphs, right_positions)
-    call s:replace_buffer_lines(left_bufnr, left_placement.lines)
+    let target_starts = copy(para_starts)
+    let target_starts[para_index] = candidate_start
+    let paragraphs = map(copy(extracted), 'v:val.content')
+    let placement = s:build_paragraph_placement(paragraphs, target_starts)
+    call s:replace_buffer_lines(target_bufnr, placement.lines)
 
     call cleave#set_text_properties()
+
+    if para_index < len(placement.positions)
+        let new_line = placement.positions[para_index] + cursor_offset
+        let new_line_text = get(getbufline(target_bufnr, new_line, new_line), 0, '')
+        let new_col = current_side ==# 'right' ? min([cursor_column_offset + 1, len(new_line_text) + 1]) : min([cursor_col, len(new_line_text) + 1])
+        call cursor(max([1, new_line]), new_col)
+    endif
 endfunction
 
 function! cleave#wrap_paragraph(paragraph_lines, width)

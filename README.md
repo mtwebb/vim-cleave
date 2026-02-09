@@ -118,8 +118,6 @@ Fast paragraph shifting with Meta (Alt) keys:
 ```vim
 nnoremap <M-k> :CleaveShiftParagraphUp<CR>
 nnoremap <M-j> :CleaveShiftParagraphDown<CR>
-nnoremap <M-K> :CleaveShiftParagraphBothUp<CR>
-nnoremap <M-J> :CleaveShiftParagraphBothDown<CR>
 ```
 
 If your terminal does not pass Meta, these bracket mappings are easy to repeat:
@@ -127,8 +125,6 @@ If your terminal does not pass Meta, these bracket mappings are easy to repeat:
 ```vim
 nnoremap [p :CleaveShiftParagraphUp<CR>
 nnoremap ]p :CleaveShiftParagraphDown<CR>
-nnoremap [P :CleaveShiftParagraphBothUp<CR>
-nnoremap ]P :CleaveShiftParagraphBothDown<CR>
 ```
 
 ## Use Cases

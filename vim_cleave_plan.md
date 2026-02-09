@@ -136,6 +136,48 @@ endfunction
 
 ## Advanced Features
 
+### Paragraph Shifting
+
+The plugin provides paragraph shifting to adjust alignment between the left
+and right buffers. There are two behaviors:
+
+1. `cleave#shift_paragraph(direction)`
+   - When invoked from the right buffer, it shifts only the active right
+     paragraph up or down by one line. Other right paragraphs retain their
+     original start positions. After the move, `cleave#set_text_properties()`
+     is called to refresh left-side anchor markers based on the right buffer.
+   - When invoked from the left buffer, it shifts only the active left
+     paragraph up or down by one line. Right paragraphs remain in place unless
+     the left shift pushes later left paragraphs down, in which case the right
+     buffer is re-aligned to the new left positions to keep both sides in sync.
+   - Cursor behavior:
+     - Right buffer: cursor stays on the same relative line within the moved
+       paragraph.
+     - Left buffer: cursor stays on the same relative line within the moved
+       paragraph.
+
+   Step-by-step (right buffer):
+   - Extract right paragraphs with `s:extract_paragraphs()`.
+   - Identify the paragraph that contains the cursor.
+   - Shift that paragraph's target start line by `+1` (down) or `-1` (up).
+   - Rebuild the right buffer with `cleave#place_right_paragraphs_at_lines()`.
+   - Refresh left anchor properties via `cleave#set_text_properties()`.
+
+   Step-by-step (left buffer):
+   - Collect left anchor lines from `cleave#get_left_buffer_paragraph_lines()`.
+   - Identify the left paragraph for the cursor using anchor position.
+   - Shift that left paragraph's target start line by `+1` or `-1`.
+   - Rebuild the left buffer using `s:build_paragraph_placement()`.
+   - If shifting down causes later left paragraphs to move (actual positions
+     differ from targets), rebuild the right buffer using those new positions
+     to keep alignment.
+   - Refresh left anchor properties via `cleave#set_text_properties()`.
+
+Paragraph shifting relies on these helpers:
+- `s:extract_paragraphs()` and `s:extract_paragraphs_ctx()`
+- `s:build_paragraph_placement()` for collision-safe placement
+- `cleave#place_right_paragraphs_at_lines()` for right-side reconstruction
+
 ### Undo Functionality
 - Track original buffer state
 - Provide command to restore original content
