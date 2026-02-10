@@ -178,6 +178,20 @@ Paragraph shifting relies on these helpers:
 - `s:build_paragraph_placement()` for collision-safe placement
 - `cleave#place_right_paragraphs_at_lines()` for right-side reconstruction
 
+## Changelog (2026.02.09)
+
+- Reworked `cleave#shift_paragraph()` to use unified left/right logic: only the
+  active paragraph moves, movement stops to preserve a single blank line
+  between paragraphs, left anchors refresh after each move, and the other
+  buffer remains unchanged.
+- Removed `cleave#shift_paragraph_both()` and related commands, docs, and
+  keybinding suggestions.
+- Added `:CleaveAgain` (`cleave#recleave_last()`) and persisted the last
+  cleave column per buffer via `b:cleave_col_last`.
+- Updated `:CleaveJoin` to preserve the last cleave column across renames.
+- Added regression coverage for the new re-cleave behavior and for ensuring
+  right paragraph positions stay stable when shifting from the left.
+
 ### Undo Functionality
 - Track original buffer state
 - Provide command to restore original content
@@ -398,4 +412,3 @@ endfor
 
 ### debug line
 vim -c "set rtp+=." -c "source plugin/cleave.vim" -c "e test/lorem_ipsum.md" -c "colo tuftish" -c "CleaveAtColumn 91" -c "CleaveReflow 65"
-
