@@ -370,9 +370,22 @@ function! cleave#split_buffer(bufnr, ...)
         \ 'original': original_bufnr, 'side': 'right',
         \ 'peer': left_bufnr, 'col': cleave_col})
 
+    " Remember last cleave column on the original buffer
+    call setbufvar(original_bufnr, 'cleave_col_last', cleave_col)
+
     " 6. Initialize text properties to show paragraph alignment
     call cleave#set_text_properties()
 
+endfunction
+
+function! cleave#recleave_last()
+    let last_col = getbufvar(bufnr('%'), 'cleave_col_last', -1)
+    if last_col == -1
+        echoerr "Cleave: No stored cleave column for this buffer"
+        return
+    endif
+
+    call cleave#split_buffer(bufnr('%'), last_col)
 endfunction
 
 function! cleave#split_content(lines, cleave_col)
@@ -509,6 +522,11 @@ function! cleave#join_buffers()
     endif
     let left_foldcolumn = getbufvar(left_bufnr, '&foldcolumn', 0)
     call setbufvar(original_bufnr, '&foldcolumn', left_foldcolumn)
+
+    let last_col = get(getbufvar(left_bufnr, 'cleave', {}), 'col', -1)
+    if last_col != -1
+        call setbufvar(original_bufnr, 'cleave_col_last', last_col)
+    endif
 
     call s:teardown_cleave(original_bufnr, left_bufnr, right_bufnr)
 

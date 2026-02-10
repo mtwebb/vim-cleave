@@ -106,6 +106,27 @@ function! TestReflowEdgeCases()
     echo "Edge cases test completed"
 endfunction
 
+function! TestRecleaveLast()
+    new
+    put =['One line of text for cleave.',
+        \ 'Second line of text for cleave.']
+    1delete
+
+    call cursor(1, 15)
+    CleaveAtCursor
+    CleaveUndo
+    file recleave_test.txt
+
+    CleaveAgain
+    let right_bufnr = bufnr('%')
+    let info = getbufvar(right_bufnr, 'cleave', {})
+    call AssertEqual(15, get(info, 'col', -1), 'Recleave uses last column')
+
+    CleaveUndo
+    bdelete!
+    echomsg "Recleave test completed"
+endfunction
+
 function! TestShiftRightParagraph()
     if !has('textprop')
         echomsg "Skipping shift paragraph test: text properties unavailable"
@@ -223,6 +244,8 @@ function! RunReflowTests()
     call TestReflowEdgeCases()
     echo ""
     call TestShiftRightParagraph()
+    echo ""
+    call TestRecleaveLast()
 
     echo "========================"
     echo "All reflow tests completed"

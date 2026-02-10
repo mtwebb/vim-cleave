@@ -395,3 +395,7 @@ endfor
 - Integrate multibyte test suites into the main test runner (`test/test_reflow.vim` or `test/test_reflow_simple.sh`)
 - Add integration tests that exercise the full cleave/edit/join round-trip with multibyte content
 - Add regression tests for `set_textwidth_to_longest_line` off-by-one (issue: ignores last line)
+
+### debug line
+vim -c "set rtp+=." -c "source plugin/cleave.vim" -c "e test/lorem_ipsum.md" -c "colo tuftish" -c "CleaveAtColumn 91" -c "CleaveReflow 65"
+

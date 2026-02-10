@@ -9,6 +9,7 @@ let g:loaded_cleave = 1
 
 command! -nargs=? CleaveAtCursor call cleave#split_buffer(bufnr('%'), <f-args>)
 command! -nargs=1 CleaveAtColumn call cleave#split_buffer(winbufnr(0), <args>)
+command! CleaveAgain call cleave#recleave_last()
 command! CleaveUndo call cleave#undo_cleave()
 command! CleaveJoin call cleave#join_buffers()
 command! -nargs=1 CleaveReflow call cleave#reflow_buffer(<args>)

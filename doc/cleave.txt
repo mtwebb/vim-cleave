@@ -45,6 +45,16 @@ COMMANDS                                     *cleave-commands*
     This splits the buffer at column 80, useful for working with text that
     has a specific line length or format.
 
+*:CleaveAgain*                               *cleave-again*
+    Re-cleaves the current buffer at the most recently used cleave column for
+    this buffer. The column is stored when `:CleaveAtCursor` or
+    `:CleaveAtColumn` is used.
+
+    Example: >
+        :CleaveAgain
+<
+    This reopens the left/right split at the previous cleave column.
+
 *:CleaveUndo*
     Restores the original buffer and closes the cleaved windows. This command
     discards any changes made to the split buffers and returns to the
