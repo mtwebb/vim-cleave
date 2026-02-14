@@ -99,6 +99,16 @@ Aligns right buffer paragraphs to match left buffer paragraph positions. This co
 :CleaveAlign
 ```
 
+#### `:CleaveAgain`
+Re-cleaves the current buffer at the most recently used cleave column. The
+column is stored when `:CleaveAtCursor` or `:CleaveAtColumn` is used, and the
+command works even if the current buffer has unsaved changes.
+
+**Example:**
+```vim
+:CleaveAgain
+```
+
 ### Options
 
 #### `g:cleave_gutter`

@@ -50,6 +50,8 @@ COMMANDS                                     *cleave-commands*
     this buffer. The column is stored when `:CleaveAtCursor` or
     `:CleaveAtColumn` is used.
 
+    This command works even if the current buffer has unsaved changes.
+
     Example: >
         :CleaveAgain
 <
@@ -135,16 +137,14 @@ COMMANDS                                     *cleave-commands*
     anchors placed thoughout the left buffer.
 
 *:CleaveShiftParagraphUp*                    *cleave-shift-up*
-    Moves the current paragraph up by one line in the right buffer and updates
-    the left-side anchor markers. This is used to fine-tune right-side
-    paragraph placement.
+    Moves the current paragraph up by one line in the active buffer and updates
+    the left-side anchor markers. This is used to fine-tune paragraph placement.
 
     Notes:
     - Works in either left or right buffer
-    - In the left buffer, the cursor must be on or below a paragraph anchor
-    - In the right buffer, the cursor must be on a paragraph line
-    - If the paragraph would overlap another, it is clamped by the standard
-      placement rules that keep paragraphs separated
+    - The other buffer is not moved
+    - Movement stops if it would remove the single blank line between paragraphs
+    - Paragraph anchor markers in the left buffer are refreshed after each move
 
     Example: >
         :CleaveShiftParagraphUp
@@ -152,16 +152,15 @@ COMMANDS                                     *cleave-commands*
     This shifts the paragraph under the cursor up by one line.
 
 *:CleaveShiftParagraphDown*                  *cleave-shift-down*
-    Moves the current paragraph down by one line in the right buffer and
-    updates the left-side anchor markers. This is used to fine-tune right-side
-    paragraph placement.
+    Moves the current paragraph down by one line in the active buffer and
+    updates the left-side anchor markers. This is used to fine-tune paragraph
+    placement.
 
     Notes:
     - Works in either left or right buffer
-    - In the left buffer, the cursor must be on or below a paragraph anchor
-    - In the right buffer, the cursor must be on a paragraph line
-    - If the paragraph would overlap another, it is clamped by the standard
-      placement rules that keep paragraphs separated
+    - The other buffer is not moved
+    - Movement stops if it would remove the single blank line between paragraphs
+    - Paragraph anchor markers in the left buffer are refreshed after each move
 
     Example: >
         :CleaveShiftParagraphDown
