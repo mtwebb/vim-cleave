@@ -68,10 +68,10 @@ function! s:extract_paragraphs(lines)
             if current_start >= 0 && !empty(current_para)
                 call add(paragraphs, {'start': current_start + 1, 'content': copy(current_para)})
             endif
-            let current_para = [trimmed]
+            let current_para = [a:lines[i]]
             let current_start = i
         elseif current_start >= 0 && trimmed !=# ''
-            call add(current_para, trimmed)
+            call add(current_para, a:lines[i])
         endif
     endfor
 

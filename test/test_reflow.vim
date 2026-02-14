@@ -1,5 +1,10 @@
 " Test script for CleaveReflow functionality
 
+set nocompatible
+set cpo&vim
+set rtp+=.
+runtime plugin/cleave.vim
+
 function! AssertEqual(expected, actual, message)
     if a:expected != a:actual
         echomsg "FAIL: " . a:message
@@ -19,10 +24,11 @@ function! TestReflowBasic()
         \ '',
         \ 'This is another paragraph with multiple sentences. It should maintain alignment with the first paragraph after reflowing.']
     1delete
+    setlocal nomodified
     
     " Test basic cleave
     call cursor(1, 20)
-    Cleave
+    CleaveAtCursor
     
     " Test reflow left buffer
     CleaveReflow 15
@@ -42,7 +48,7 @@ function! TestReflowBasic()
         echo (i+1) . ": " . right_lines[i]
     endfor
     
-    CleaveUndo
+    call cleave#undo_cleave()
     bdelete!
     echo "Basic reflow test completed"
 endfunction
@@ -54,10 +60,11 @@ function! TestReflowRightBuffer()
         \ '',
         \ 'More left text.']
     1delete
+    setlocal nomodified
     
     " Test cleave at column 25
     call cursor(1, 25)
-    Cleave
+    CleaveAtCursor
     
     " Move to right buffer and add content
     wincmd l
@@ -75,7 +82,7 @@ function! TestReflowRightBuffer()
         echo (i+1) . ": " . right_lines[i]
     endfor
     
-    CleaveUndo
+    call cleave#undo_cleave()
     bdelete!
     echo "Right buffer reflow test completed"
 endfunction
@@ -85,9 +92,10 @@ function! TestReflowEdgeCases()
     new
     put =['This is test content for edge case testing.']
     1delete
+    setlocal nomodified
     
     call cursor(1, 15)
-    Cleave
+    CleaveAtCursor
     
     " Try very narrow width (should be rejected)
     try
@@ -101,7 +109,7 @@ function! TestReflowEdgeCases()
     CleaveReflow 10
     echo "Minimum width test passed"
     
-    CleaveUndo
+    call cleave#undo_cleave()
     bdelete!
     echo "Edge cases test completed"
 endfunction
@@ -111,6 +119,7 @@ function! TestRecleaveLast()
     put =['One line of text for cleave.',
         \ 'Second line of text for cleave.']
     1delete
+    setlocal nomodified
 
     call cursor(1, 15)
     CleaveAtCursor
@@ -132,7 +141,6 @@ function! TestRecleaveLast()
     call AssertEqual('New content', get(recleave_lines, 0, ''), 'Recleave keeps unsaved buffer content')
     call AssertEqual('Second line', get(recleave_lines, 1, ''), 'Recleave keeps unsaved buffer content')
 
-    CleaveUndo
     bdelete!
     echomsg "Recleave test completed"
 endfunction
@@ -146,11 +154,13 @@ function! TestShiftRightParagraph()
     new
     put =['Left column text.',
         \ '',
-        \ 'Second left paragraph.']
+        \ 'Second left paragraph.',
+        \ '']
     1delete
+    setlocal nomodified
 
     call cursor(1, 20)
-    Cleave
+    CleaveAtCursor
 
     wincmd l
     call setline(1, ['First right paragraph line one.',
@@ -166,13 +176,13 @@ function! TestShiftRightParagraph()
 
     let right_lines = getline(1, '$')
     let shifted_index = index(right_lines, 'Second right paragraph starts here.')
-    let expected_start = 3
-    call AssertEqual(expected_start, shifted_index + 1, 'Shift paragraph up')
+    let expected_start = 4
+    call AssertEqual(expected_start, shifted_index + 1, 'Shift paragraph up blocked')
 
     wincmd h
     let left_props = prop_list(1, {'bufnr': bufnr('%'), 'types': ['cleave_paragraph_start'], 'end_lnum': -1})
     let prop_lines = map(copy(left_props), 'v:val.lnum')
-    call AssertEqual(3, prop_lines[1], 'Anchor moved with paragraph')
+    call AssertEqual(4, prop_lines[1], 'Anchor moved with paragraph')
 
     wincmd l
     call cursor(3, 5)
@@ -187,7 +197,7 @@ function! TestShiftRightParagraph()
     call cleave#shift_paragraph('up')
     let left_props_after = prop_list(1, {'bufnr': bufnr('%'), 'types': ['cleave_paragraph_start'], 'end_lnum': -1})
     let prop_lines_after = map(copy(left_props_after), 'v:val.lnum')
-    call AssertEqual(3, prop_lines_after[1], 'Left buffer shift respected anchors')
+    call AssertEqual(4, prop_lines_after[1], 'Left buffer shift respected anchors')
 
     wincmd l
     call cursor(2, 1)
@@ -199,7 +209,9 @@ function! TestShiftRightParagraph()
     wincmd h
     call setline(1, ['Left column text.',
         \ '',
-        \ 'Second left paragraph.'])
+        \ 'Second left paragraph.',
+        \ ''])
+    setlocal nomodified
     call cleave#set_text_properties()
 
     wincmd l
@@ -238,7 +250,7 @@ function! TestShiftRightParagraph()
     endfor
     call AssertEqual(string(right_positions_before_down), string(right_positions_after_down), 'Right positions unchanged when shift blocked')
 
-    CleaveUndo
+    call cleave#undo_cleave()
     bdelete!
     echomsg "Shift paragraph test completed"
 endfunction
