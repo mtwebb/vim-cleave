@@ -122,6 +122,16 @@ function! TestRecleaveLast()
     let info = getbufvar(right_bufnr, 'cleave', {})
     call AssertEqual(15, get(info, 'col', -1), 'Recleave uses last column')
 
+    CleaveJoin
+    call deletebufline(bufnr('%'), 1, '$')
+    call setline(1, ['New content', 'Second line'])
+    setlocal modified
+    CleaveAgain
+    CleaveJoin
+    let recleave_lines = getline(1, '$')
+    call AssertEqual('New content', get(recleave_lines, 0, ''), 'Recleave keeps unsaved buffer content')
+    call AssertEqual('Second line', get(recleave_lines, 1, ''), 'Recleave keeps unsaved buffer content')
+
     CleaveUndo
     bdelete!
     echomsg "Recleave test completed"

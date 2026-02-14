@@ -324,7 +324,17 @@ function! s:resolve_buffers(...)
 endfunction
 
 function! cleave#split_buffer(bufnr, ...)
-    if getbufvar(a:bufnr, '&modified')
+    let opts = {}
+    if a:0 > 0
+        for idx in range(1, a:0)
+            let candidate = get(a:, idx, v:null)
+            if type(candidate) == type({})
+                let opts = candidate
+                break
+            endif
+        endfor
+    endif
+    if getbufvar(a:bufnr, '&modified') && !get(opts, 'force', 0)
         echoerr "Cleave: Buffer has unsaved changes. Please :write before cleaving."
         return
     endif
@@ -338,54 +348,62 @@ function! cleave#split_buffer(bufnr, ...)
         let cleave_col = virtcol('.')
     endif
 
-    if cleave_col == 1
+    call s:split_buffer_at_col(a:bufnr, cleave_col)
+endfunction
+
+function! s:split_buffer_at_col(bufnr, cleave_col)
+    if a:cleave_col == 1
         echoerr "Cleave: Cannot split at the first column."
         return
     endif
+    let saved_hidden = &hidden
+    set hidden
+    try
+        let original_bufnr = a:bufnr
+        let original_winid = win_getid()
+        let original_cursor = getcurpos()
 
-    let original_bufnr = a:bufnr
-    let original_winid = win_getid()
-    let original_cursor = getcurpos()
+        " 2. Content Extraction
+        let original_lines = getbufline(original_bufnr, 1, '$')
+        let [left_lines, right_lines] = cleave#split_content(original_lines, a:cleave_col)
 
-    " 2. Content Extraction
-    let original_lines = getbufline(original_bufnr, 1, '$')
-    let [left_lines, right_lines] = cleave#split_content(original_lines, cleave_col)
+        " 3. Buffer Creation
+        let original_name = expand('%:t')
+        if empty(original_name)
+            let original_name = 'noname'
+        endif
+        let original_foldcolumn = &foldcolumn
+        let [left_bufnr, right_bufnr] = cleave#create_buffers(left_lines, right_lines, original_name, original_foldcolumn)
 
-    " 3. Buffer Creation
-    let original_name = expand('%:t')
-    if empty(original_name)
-        let original_name = 'noname'
-    endif
-    let original_foldcolumn = &foldcolumn
-    let [left_bufnr, right_bufnr] = cleave#create_buffers(left_lines, right_lines, original_name, original_foldcolumn)
+        " 4. Window Management
+        call cleave#setup_windows(a:cleave_col, left_bufnr, right_bufnr, original_winid, original_cursor, original_foldcolumn)
 
-    " 4. Window Management
-    call cleave#setup_windows(cleave_col, left_bufnr, right_bufnr, original_winid, original_cursor, original_foldcolumn)
+        " 5. Store cleave state on each buffer
+        call setbufvar(left_bufnr, 'cleave', {
+            \ 'original': original_bufnr, 'side': 'left',
+            \ 'peer': right_bufnr, 'col': a:cleave_col})
+        call setbufvar(right_bufnr, 'cleave', {
+            \ 'original': original_bufnr, 'side': 'right',
+            \ 'peer': left_bufnr, 'col': a:cleave_col})
 
-    " 5. Store cleave state on each buffer
-    call setbufvar(left_bufnr, 'cleave', {
-        \ 'original': original_bufnr, 'side': 'left',
-        \ 'peer': right_bufnr, 'col': cleave_col})
-    call setbufvar(right_bufnr, 'cleave', {
-        \ 'original': original_bufnr, 'side': 'right',
-        \ 'peer': left_bufnr, 'col': cleave_col})
+        " Remember last cleave column on the original buffer
+        call setbufvar(original_bufnr, 'cleave_col_last', a:cleave_col)
 
-    " Remember last cleave column on the original buffer
-    call setbufvar(original_bufnr, 'cleave_col_last', cleave_col)
-
-    " 6. Initialize text properties to show paragraph alignment
-    call cleave#set_text_properties()
-
+        " 6. Initialize text properties to show paragraph alignment
+        call cleave#set_text_properties()
+    finally
+        let &hidden = saved_hidden
+    endtry
 endfunction
 
 function! cleave#recleave_last()
-    let last_col = getbufvar(bufnr('%'), 'cleave_col_last', -1)
+    let original_bufnr = bufnr('%')
+    let last_col = getbufvar(original_bufnr, 'cleave_col_last', -1)
     if last_col == -1
         echoerr "Cleave: No stored cleave column for this buffer"
         return
     endif
-
-    call cleave#split_buffer(bufnr('%'), last_col)
+    call s:split_buffer_at_col(original_bufnr, last_col)
 endfunction
 
 function! cleave#split_content(lines, cleave_col)
@@ -403,7 +421,7 @@ endfunction
 
 function! cleave#create_buffers(left_lines, right_lines, original_name, original_foldcolumn)
     " Create left buffer
-    silent execute 'enew'
+    silent execute 'hide enew'
     silent execute 'file ' . fnameescape(a:original_name . '.left')
     let left_bufnr = bufnr('%')
     call setline(1, a:left_lines)
@@ -415,7 +433,7 @@ function! cleave#create_buffers(left_lines, right_lines, original_name, original
     call cleave#set_textwidth_to_longest_line()
     
     " Create right buffer
-    silent execute 'enew'
+    silent execute 'hide enew'
     silent execute 'file ' . fnameescape(a:original_name . '.right')
     let right_bufnr = bufnr('%')
     call setline(1, a:right_lines)
