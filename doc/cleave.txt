@@ -70,10 +70,11 @@ COMMANDS                                     *cleave-commands*
     The plugin calculates the necessary padding to maintain proper column
     alignment when joining the content.
 
-*:CleaveReflow {width}*                      *cleave-reflow*
+*:CleaveReflow {width} [mode]*               *cleave-reflow*
     Reflows the text in the current buffer (left or right) to the specified
-    {width}. This command provides intelligent text wrapping while preserving
-    the relationship between left and right content.
+    {width}. Optionally pass {mode} (`ragged` or `justify`) to override the
+    configured reflow mode. This command provides intelligent text wrapping
+    while preserving the relationship between left and right content.
 
     Key features:
     - Automatically detects which cleaved buffer has focus
@@ -103,12 +104,21 @@ COMMANDS                                     *cleave-commands*
     5. LEFT buffer remains unchanged
 
     Minimum width: 10 characters
+
+    Modes:
+    - `ragged` leaves the right edge uneven (default)
+    - `justify` distributes spaces to align the right edge, keeping the last
+      line ragged unless `g:cleave_justify_last_line` is enabled.
     
     Example: >
         :CleaveReflow 60
+        :CleaveReflow 60 justify
 <
     This reflows the current buffer to 60 characters width while maintaining
     alignment with the corresponding buffer.
+
+*:CleaveJustifyToggle*
+    Toggles the active buffer's reflow mode between `ragged` and `justify`.
 
 *:CleaveAlign*                               *cleave-align*
     Aligns right buffer paragraphs to match left buffer paragraph positions.
@@ -225,6 +235,37 @@ OPTIONS                                      *cleave-options*
     Example: >
         let g:cleave_gutter = 5
 <
+
+*g:cleave_reflow_mode*
+    Default reflow mode used by `:CleaveReflow`. Values are `ragged` or
+    `justify`.
+
+    Default: `ragged`
+
+    Example: >
+        let g:cleave_reflow_mode = 'justify'
+<
+
+*g:cleave_hyphenate*
+    Enable heuristic hyphenation when a single word exceeds the target width.
+
+    Default: `1`
+
+*g:cleave_dehyphenate*
+    Join end-of-line hyphenations (`hy-` + `phen`) before reflowing a
+    paragraph.
+
+    Default: `1`
+
+*g:cleave_hyphen_min_length*
+    Minimum word length eligible for hyphenation.
+
+    Default: `8`
+
+*g:cleave_justify_last_line*
+    When enabled, justify the final line of each paragraph.
+
+    Default: `0`
 
 ==============================================================================
 EXAMPLES                                     *cleave-examples*

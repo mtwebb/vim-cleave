@@ -199,6 +199,64 @@ Paragraph shifting relies on these helpers:
 
 ### Synchronization
 
+## Justified Reflow Plan
+
+Goal: add an optional justification mode to `:CleaveReflow` that can switch
+between ragged-right (current behavior) and fully justified reflow while
+preserving paragraph alignment and hyphenation rules.
+
+### Requirements (initial)
+- Remove end-of-line hyphens and join partial words before wrapping so words
+  are not duplicated or split incorrectly.
+- Split long words at a suitable break point and insert a hyphen when a word
+  cannot fit within the width (configurable).
+- Switch between ragged-right and justified reflow (per buffer or per
+  command).
+
+### Additional Considerations
+- Preserve fenced/preformatted blocks; justification must respect existing
+  skip logic.
+- Keep paragraph boundaries and anchors stable; do not merge/split paragraphs.
+- Preserve indentation, list bullets, and hanging indents while distributing
+  spaces.
+- Use display width calculations (`strdisplaywidth`) for tabs and multibyte
+  text; avoid byte-length assumptions.
+- Keep the last line ragged by default; decide if a "justify all lines" mode
+  is needed.
+- Provide configuration for hyphenation/dehyphenation and minimum word
+  lengths; decide whether `:CleaveJoin` should dehyphenate.
+- Ensure right-buffer reflow preserves paragraph positions while line spacing
+  changes.
+
+### Proposed API/UX
+- `g:cleave_reflow_mode` default `ragged` or `justify`.
+- `:CleaveReflow <width> [mode]` optional `ragged` or `justify` override.
+- `:CleaveJustifyToggle` for quick switching.
+- `g:cleave_hyphenate`, `g:cleave_dehyphenate`, and
+  `g:cleave_hyphen_min_length` options for word splitting.
+- `g:cleave_justify_last_line` to control final-line behavior.
+
+### Implementation Plan (high-level)
+1. Add an option resolver (global + buffer + command) to centralize reflow
+   settings.
+1. Preprocess paragraphs with `s:normalize_wrapping_text()` to join
+   end-of-line hyphenations (`hy-` + `phen`).
+1. Extend `cleave#wrap_paragraph()` to accept an options dict and return
+   lines with preserved indentation.
+1. Add `s:hyphenate_word()` for long-word splitting (simple heuristic
+   fallback).
+1. Add `s:justify_lines()` to distribute extra spaces across word gaps,
+   skipping last lines and single-word lines.
+1. Integrate into left/right reflow paths while keeping fence handling
+   unchanged.
+1. Add tests for dehyphenation, hyphenation, and justification, including
+   multibyte width handling and list indentation.
+
+### Open Questions
+- v1 will use a simple heuristic hyphenation strategy.
+- Should justification be per buffer or per command only?
+- Should `:CleaveJoin` or `:CleaveReflow` handle dehyphenation differently?
+
 ## Reflow Policy Notes
 
 When refining `CleaveReflow`, consider these approaches for preserving

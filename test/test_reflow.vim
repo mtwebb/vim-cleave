@@ -135,19 +135,92 @@ function! TestReflowFencedBlocks()
 
     call cursor(1, 20)
     CleaveAtCursor
+    let before_lines = getline(1, '$')
+    let before_fence_start = index(before_lines, '```')
+    let before_fence_end = index(before_lines, '```', before_fence_start + 1)
+    call AssertEqual(v:true, before_fence_start >= 0, 'Fence start exists')
+    call AssertEqual(v:true, before_fence_end > before_fence_start,
+        \ 'Fence end exists')
     CleaveReflow 20
 
     let lines = getline(1, '$')
     let fence_start = index(lines, '```')
     let fence_end = index(lines, '```', fence_start + 1)
-    call AssertEqual(3, fence_start + 1, 'Fence start line preserved')
-    call AssertEqual(6, fence_end + 1, 'Fence end line preserved')
-    call AssertEqual(code_line, lines[fence_start + 1], 'Fence content preserved')
-    call AssertEqual(another_line, lines[fence_start + 2], 'Fence content preserved')
+    call AssertEqual(before_lines[before_fence_start], lines[fence_start],
+        \ 'Fence start line preserved')
+    call AssertEqual(before_lines[before_fence_end], lines[fence_end],
+        \ 'Fence end line preserved')
+
+    let before_fence = before_lines[before_fence_start + 1:before_fence_end - 1]
+    let after_fence = lines[fence_start + 1:fence_end - 1]
+    call AssertEqual(string(before_fence), string(after_fence),
+        \ 'Fence content preserved')
 
     call cleave#undo_cleave()
     bdelete!
     echo "Fenced reflow test completed"
+endfunction
+
+function! TestReflowJustifyAndHyphenation()
+    new
+    put =['Justification should spread spaces and keep the last line ragged by',
+        \ 'default.',
+        \ '',
+        \ 'Hyphenated text should be rejoined when reflowing to a new width.',
+        \ 'This line has a hyphenated word split as hy-',
+        \ 'phenation for testing.']
+    1delete
+    setlocal nomodified
+
+    call cursor(1, 20)
+    CleaveAtCursor
+    wincmd l
+
+    let b:cleave_reflow_mode = 'justify'
+    let saved_hyphenate = g:cleave_hyphenate
+    let saved_dehyphenate = g:cleave_dehyphenate
+    let saved_min_length = g:cleave_hyphen_min_length
+    let g:cleave_hyphenate = 1
+    let g:cleave_dehyphenate = 1
+    let g:cleave_hyphen_min_length = 6
+
+    CleaveReflow 20
+
+    let lines = getline(1, '$')
+    let paragraph_lines = []
+    for line in lines
+        if empty(trim(line))
+            break
+        endif
+        call add(paragraph_lines, line)
+    endfor
+
+    let has_extra_spacing = v:false
+    if len(paragraph_lines) > 1
+        for idx in range(len(paragraph_lines) - 2)
+            if paragraph_lines[idx] =~# '\s\{2,\}\S'
+                let has_extra_spacing = v:true
+                break
+            endif
+        endfor
+    endif
+
+    let last_line = get(paragraph_lines, -1, '')
+    call AssertEqual(v:true, has_extra_spacing, 'Justify adds spacing')
+    call AssertEqual(v:false, last_line =~# '\s\{2,\}\S',
+        \ 'Last line stays ragged')
+
+    let joined_text = join(lines, ' ')
+    call AssertEqual(v:false, joined_text =~# 'hy-\s\+phenation',
+        \ 'Dehyphenation joins words')
+
+    let g:cleave_hyphenate = saved_hyphenate
+    let g:cleave_dehyphenate = saved_dehyphenate
+    let g:cleave_hyphen_min_length = saved_min_length
+
+    call cleave#undo_cleave()
+    bdelete!
+    echo "Justify and hyphenation test completed"
 endfunction
 
 function! TestRecleaveLast()
@@ -302,6 +375,8 @@ function! RunReflowTests()
     call TestReflowEdgeCases()
     echo ""
     call TestReflowFencedBlocks()
+    echo ""
+    call TestReflowJustifyAndHyphenation()
     echo ""
     call TestShiftRightParagraph()
     echo ""

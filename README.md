@@ -69,8 +69,9 @@ Restores the original buffer and closes the cleaved windows. This discards any c
 #### `:CleaveJoin`
 Merges the left and right buffers back into the original buffer, maintaining proper alignment and spacing between the content. Changes are preserved.
 
-#### `:CleaveReflow <width>`
-Reflows the text in the current buffer (left or right) to the specified width. 
+#### `:CleaveReflow <width> [mode]`
+Reflows the text in the current buffer (left or right) to the specified width.
+Optional mode values: `ragged` (default) or `justify`.
 
 **Key features:**
 - Automatically detects which cleaved buffer has focus
@@ -82,7 +83,11 @@ Reflows the text in the current buffer (left or right) to the specified width.
 **Example:**
 ```vim
 :CleaveReflow 60
+:CleaveReflow 60 justify
 ```
+
+#### `:CleaveJustifyToggle`
+Toggles the active buffer's reflow mode between `ragged` and `justify`.
 
 #### `:CleaveAlign`
 Aligns right buffer paragraphs to match left buffer paragraph positions. This command is useful when paragraph alignment has been disrupted and needs to be restored.
@@ -120,6 +125,35 @@ Sets the number of spaces between the left and right content when joining buffer
 ```vim
 let g:cleave_gutter = 5
 ```
+
+#### `g:cleave_reflow_mode`
+Default reflow mode for `:CleaveReflow` (`ragged` or `justify`).
+
+**Default:** `ragged`
+
+```vim
+let g:cleave_reflow_mode = 'justify'
+```
+
+#### `g:cleave_hyphenate`
+Enable heuristic hyphenation for words longer than the target width.
+
+**Default:** `1`
+
+#### `g:cleave_dehyphenate`
+Join end-of-line hyphenations before wrapping.
+
+**Default:** `1`
+
+#### `g:cleave_hyphen_min_length`
+Minimum word length eligible for hyphenation.
+
+**Default:** `8`
+
+#### `g:cleave_justify_last_line`
+Justify the final line of each paragraph when enabled.
+
+**Default:** `0`
 
 ### Keybinding Suggestions
 

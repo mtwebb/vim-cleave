@@ -1,8 +1,31 @@
 " cleave.vim - autoload script for cleave plugin
 
+let s:save_cpo = &cpo
+set cpo&vim
+
 " Global variable for gutter width
 if !exists('g:cleave_gutter')
     let g:cleave_gutter = 3
+endif
+
+if !exists('g:cleave_reflow_mode')
+    let g:cleave_reflow_mode = 'ragged'
+endif
+
+if !exists('g:cleave_hyphenate')
+    let g:cleave_hyphenate = 1
+endif
+
+if !exists('g:cleave_dehyphenate')
+    let g:cleave_dehyphenate = 1
+endif
+
+if !exists('g:cleave_hyphen_min_length')
+    let g:cleave_hyphen_min_length = 8
+endif
+
+if !exists('g:cleave_justify_last_line')
+    let g:cleave_justify_last_line = 0
 endif
 
 " ============================================================================
@@ -29,8 +52,10 @@ function! s:is_para_start_ctx(lines, left_lines, idx)
     if trim(a:lines[a:idx - 1]) ==# ''
         return v:true
     endif
-    let left_empty = (a:idx - 1 < len(a:left_lines)) ? (trim(a:left_lines[a:idx - 1]) ==# '') : v:true
-    return left_empty
+    if a:idx - 1 < len(a:left_lines)
+        return trim(a:left_lines[a:idx - 1]) ==# ''
+    endif
+    return v:true
 endfunction
 
 " Return 1-based line numbers of paragraph starts in lines (simple detection)
@@ -338,6 +363,16 @@ function! cleave#split_buffer(bufnr, ...)
         echoerr "Cleave: Buffer has unsaved changes. Please :write before cleaving."
         return
     endif
+
+    let mode_override = get(opts, 'reflow_mode', '')
+    if !empty(mode_override)
+        let mode = s:normalize_reflow_mode(mode_override)
+        if empty(mode)
+            echoerr "Cleave: Invalid reflow mode"
+            return
+        endif
+        call setbufvar(a:bufnr, 'cleave_reflow_mode', mode)
+    endif
     " 1. Determine Cleave Column
     let cleave_col = 0
     if a:0 > 0
@@ -349,6 +384,13 @@ function! cleave#split_buffer(bufnr, ...)
     endif
 
     call s:split_buffer_at_col(a:bufnr, cleave_col)
+endfunction
+
+function! cleave#toggle_reflow_mode()
+    let current = s:current_reflow_mode()
+    let next_mode = current ==# 'justify' ? 'ragged' : 'justify'
+    call setbufvar(bufnr('%'), 'cleave_reflow_mode', next_mode)
+    echomsg "Cleave: Reflow mode set to " . next_mode
 endfunction
 
 function! s:split_buffer_at_col(bufnr, cleave_col)
@@ -379,12 +421,12 @@ function! s:split_buffer_at_col(bufnr, cleave_col)
         call cleave#setup_windows(a:cleave_col, left_bufnr, right_bufnr, original_winid, original_cursor, original_foldcolumn)
 
         " 5. Store cleave state on each buffer
-        call setbufvar(left_bufnr, 'cleave', {
-            \ 'original': original_bufnr, 'side': 'left',
-            \ 'peer': right_bufnr, 'col': a:cleave_col})
-        call setbufvar(right_bufnr, 'cleave', {
-            \ 'original': original_bufnr, 'side': 'right',
-            \ 'peer': left_bufnr, 'col': a:cleave_col})
+        let left_state = {'original': original_bufnr, 'side': 'left',
+            \ 'peer': right_bufnr, 'col': a:cleave_col}
+        let right_state = {'original': original_bufnr, 'side': 'right',
+            \ 'peer': left_bufnr, 'col': a:cleave_col}
+        call setbufvar(left_bufnr, 'cleave', left_state)
+        call setbufvar(right_bufnr, 'cleave', right_state)
 
         " Remember last cleave column on the original buffer
         call setbufvar(original_bufnr, 'cleave_col_last', a:cleave_col)
@@ -551,20 +593,130 @@ function! cleave#join_buffers()
     echomsg "Cleave: Buffers joined successfully."
 endfunction
 
-function! cleave#reflow_buffer(new_width)
+function! s:normalize_reflow_mode(mode)
+    let normalized = tolower(a:mode)
+    if index(['ragged', 'justify'], normalized) == -1
+        return ''
+    endif
+    return normalized
+endfunction
+
+function! s:current_reflow_mode()
+    let mode = getbufvar(bufnr('%'), 'cleave_reflow_mode', '')
+    if empty(mode)
+        let mode = g:cleave_reflow_mode
+    endif
+    return s:normalize_reflow_mode(mode)
+endfunction
+
+function! s:default_reflow_options(width)
+    let mode = s:normalize_reflow_mode(g:cleave_reflow_mode)
+    if empty(mode)
+        let mode = 'ragged'
+    endif
+    return {
+        \ 'width': a:width,
+        \ 'mode': mode,
+        \ 'hyphenate': g:cleave_hyphenate,
+        \ 'dehyphenate': g:cleave_dehyphenate,
+        \ 'hyphen_min_length': g:cleave_hyphen_min_length,
+        \ 'justify_last_line': g:cleave_justify_last_line,
+        \ }
+endfunction
+
+function! s:resolve_reflow_options(width, mode_override)
+    let mode = s:current_reflow_mode()
+    if !empty(a:mode_override)
+        let override = s:normalize_reflow_mode(a:mode_override)
+        if empty(override)
+            echoerr "Cleave: Invalid reflow mode"
+            return {}
+        endif
+        let mode = override
+    endif
+    if empty(mode)
+        echoerr "Cleave: Invalid reflow mode"
+        return {}
+    endif
+    return {
+        \ 'width': a:width,
+        \ 'mode': mode,
+        \ 'hyphenate': g:cleave_hyphenate,
+        \ 'dehyphenate': g:cleave_dehyphenate,
+        \ 'hyphen_min_length': g:cleave_hyphen_min_length,
+        \ 'justify_last_line': g:cleave_justify_last_line,
+        \ }
+endfunction
+
+function! s:with_default_reflow_options(options)
+    let width = get(a:options, 'width', 0)
+    if type(width) == type('')
+        if width =~# '^\d\+$'
+            let width = str2nr(width)
+        else
+            let width = 0
+        endif
+    endif
+
+    let defaults = s:default_reflow_options(width)
+    let merged = extend(defaults, a:options, 'force')
+
+    let merged.width = width > 0 ? width : defaults.width
+    let merged.mode = s:normalize_reflow_mode(get(merged, 'mode', ''))
+    if empty(merged.mode)
+        let merged.mode = defaults.mode
+    endif
+
+    let min_length = get(merged, 'hyphen_min_length',
+        \ defaults.hyphen_min_length)
+    if type(min_length) != type(0)
+        let min_length = defaults.hyphen_min_length
+    endif
+    if min_length < 2
+        let min_length = 2
+    endif
+    let merged.hyphen_min_length = min_length
+
+    let merged.hyphenate = get(merged, 'hyphenate', defaults.hyphenate)
+    let merged.dehyphenate = get(merged, 'dehyphenate', defaults.dehyphenate)
+    let merged.justify_last_line = get(merged, 'justify_last_line',
+        \ defaults.justify_last_line)
+
+    return merged
+endfunction
+
+function! cleave#reflow_buffer(...)
+    if a:0 < 1
+        echoerr "Cleave: Width is required"
+        return
+    endif
+
+    if a:1 !~# '^\d\+$'
+        echoerr "Cleave: Width must be a number"
+        return
+    endif
+
+    let new_width = str2nr(a:1)
+
     " Get buffer numbers using helper function
     let [original_bufnr, left_bufnr, right_bufnr] = s:resolve_buffers()
-    
+
     if original_bufnr == -1 || left_bufnr == -1 || right_bufnr == -1
         echoerr "Cleave: Not a cleave buffer or buffers not found."
         return
     endif
-    
-    if a:new_width < 10
+
+    if new_width < 10
         echoerr "Cleave: Width must be at least 10 characters"
         return
     endif
-    
+
+    let mode_override = a:0 > 1 ? a:2 : ''
+    let options = s:resolve_reflow_options(new_width, mode_override)
+    if empty(options)
+        return
+    endif
+
     let current_bufnr = bufnr('%')
     let current_side = get(getbufvar(current_bufnr, 'cleave', {}), 'side', '')
     
@@ -575,17 +727,21 @@ function! cleave#reflow_buffer(new_width)
     
     " Handle right buffer reflow with dedicated logic
     if current_side == 'right'
-        call cleave#reflow_right_buffer(a:new_width, current_bufnr, left_bufnr, right_bufnr)
+        call cleave#reflow_right_buffer(options, current_bufnr,
+            \ left_bufnr, right_bufnr)
         return
     endif
-    
+
     " Handle left buffer reflow with dedicated logic
-    call cleave#reflow_left_buffer(a:new_width, current_bufnr, left_bufnr, right_bufnr)
+    call cleave#reflow_left_buffer(options, current_bufnr, left_bufnr,
+        \ right_bufnr)
 endfunction
 
-function! cleave#reflow_right_buffer(new_width, current_bufnr, left_bufnr, right_bufnr)
+function! cleave#reflow_right_buffer(options, current_bufnr, left_bufnr,
+    \ right_bufnr)
     " Reflow right buffer to new width, preserving paragraph positions
     let current_lines = getline(1, '$')
+    let width = a:options.width
 
     " Step 1: Extract paragraphs with their positions
     let extracted = s:extract_paragraphs(current_lines)
@@ -613,7 +769,7 @@ function! cleave#reflow_right_buffer(new_width, current_bufnr, left_bufnr, right
         if inside_fence
             let reflowed_para = para_lines
         else
-            let reflowed_para = cleave#wrap_paragraph(para_lines, a:new_width)
+            let reflowed_para = cleave#wrap_paragraph(para_lines, a:options)
         endif
 
         call add(reflowed_paragraphs, reflowed_para)
@@ -672,7 +828,7 @@ function! cleave#reflow_right_buffer(new_width, current_bufnr, left_bufnr, right
     
     " Step 4: Update the right buffer
     call s:replace_buffer_lines(bufnr('%'), new_buffer_lines)
-    execute 'setlocal textwidth=' . a:new_width
+    execute 'setlocal textwidth=' . width
 endfunction
 
 function! s:capture_paragraph_anchors(left_lines, para_starts)
@@ -758,40 +914,40 @@ function! s:apply_post_reflow_ui(new_width, current_bufnr, right_bufnr, right_li
     call cleave#set_text_properties()
 endfunction
 
-function! cleave#reflow_left_buffer(new_width, current_bufnr, left_bufnr, right_bufnr)
+function! cleave#reflow_left_buffer(options, current_bufnr, left_bufnr,
+    \ right_bufnr)
     let right_lines = getbufline(a:right_bufnr, 1, '$')
     let left_lines = getbufline(a:left_bufnr, 1, '$')
     let right_para_starts = s:para_starts_ctx(right_lines, left_lines)
 
     let anchors = s:capture_paragraph_anchors(left_lines, right_para_starts)
 
-    let reflowed_lines = cleave#reflow_text(getline(1, '$'), a:new_width)
+    let reflowed_lines = cleave#reflow_text(getline(1, '$'), a:options)
     call s:replace_buffer_lines(bufnr('%'), reflowed_lines)
 
     let updated_para_starts = s:locate_anchors_after_reflow(getline(1, '$'), anchors)
 
-    call s:apply_post_reflow_ui(a:new_width, a:current_bufnr, a:right_bufnr, right_lines, updated_para_starts)
+    call s:apply_post_reflow_ui(a:options.width, a:current_bufnr,
+        \ a:right_bufnr, right_lines, updated_para_starts)
 endfunction
 
-function! cleave#reflow_text(lines, width)
+function! cleave#reflow_text(lines, options)
     let reflowed = []
     let current_paragraph = []
-    let paragraph_indent = ''
     let inside_fence = v:false
     let fence_pattern = '^\s*```'
+
+    let options = s:with_default_reflow_options(a:options)
+    let width = options.width
 
     for line in a:lines
         let trimmed = trim(line)
 
         if line =~# fence_pattern
             if !empty(current_paragraph)
-                let wrapped = cleave#wrap_paragraph(current_paragraph, a:width)
-                if !empty(paragraph_indent) && !empty(wrapped)
-                    let wrapped[0] = paragraph_indent . wrapped[0]
-                endif
+                let wrapped = cleave#wrap_paragraph(current_paragraph, options)
                 call extend(reflowed, wrapped)
                 let current_paragraph = []
-                let paragraph_indent = ''
             endif
             call add(reflowed, line)
             let inside_fence = !inside_fence
@@ -806,34 +962,163 @@ function! cleave#reflow_text(lines, width)
         if empty(trimmed)
             " Empty line - end current paragraph
             if !empty(current_paragraph)
-                let wrapped = cleave#wrap_paragraph(current_paragraph, a:width)
-                if !empty(paragraph_indent) && !empty(wrapped)
-                    let wrapped[0] = paragraph_indent . wrapped[0]
-                endif
+                let wrapped = cleave#wrap_paragraph(current_paragraph, options)
                 call extend(reflowed, wrapped)
                 let current_paragraph = []
-                let paragraph_indent = ''
             endif
             call add(reflowed, '')
         else
-            if empty(current_paragraph)
-                let paragraph_indent = matchstr(line, '^\s*')
-            endif
-            " Add to current paragraph, trimming for clean wrapping.
-            call add(current_paragraph, trimmed)
+            " Add to current paragraph for wrapping.
+            call add(current_paragraph, line)
         endif
     endfor
 
     " Handle final paragraph
     if !empty(current_paragraph)
-        let wrapped = cleave#wrap_paragraph(current_paragraph, a:width)
-        if !empty(paragraph_indent) && !empty(wrapped)
-            let wrapped[0] = paragraph_indent . wrapped[0]
-        endif
+        let wrapped = cleave#wrap_paragraph(current_paragraph, options)
         call extend(reflowed, wrapped)
     endif
 
     return reflowed
+endfunction
+
+function! s:extract_indent_and_hanging(line)
+    let indent = matchstr(a:line, '^\s*')
+    let after_indent = a:line[len(indent):]
+    let bullet_match = matchlist(after_indent,
+        \ '^\(\%([-*+]\|\d\+\.[)]\)\)\s\+')
+    if empty(bullet_match)
+        return {'indent': indent, 'hanging': ''}
+    endif
+    let hanging = bullet_match[0]
+    return {'indent': indent, 'hanging': hanging}
+endfunction
+
+function! s:normalize_wrapping_text(lines, dehyphenate)
+    let normalized = []
+    let idx = 0
+
+    while idx < len(a:lines)
+        let line = trim(a:lines[idx])
+        if a:dehyphenate && idx + 1 < len(a:lines)
+            let next_line = trim(a:lines[idx + 1])
+            if line =~# '\v[[:alpha:]]-$' &&
+                \ next_line =~# '\v^[[:alpha:]]'
+                let line = substitute(line, '-$', '', '') . next_line
+                let idx += 1
+            endif
+        endif
+        call add(normalized, line)
+        let idx += 1
+    endwhile
+
+    return normalized
+endfunction
+
+function! s:hyphenate_word(word, width, options)
+    let max_width = a:width
+    if max_width < 3
+        return [a:word]
+    endif
+
+    let min_length = get(a:options, 'hyphen_min_length', 8)
+    if strchars(a:word) < min_length
+        return [a:word]
+    endif
+
+    let max_body_width = max_width - 1
+    if max_body_width < 2
+        return [a:word]
+    endif
+
+    let word_length = strchars(a:word)
+    let width_accum = 0
+    let max_index = 0
+    let candidate_index = 0
+    let vowels = 'aeiouy'
+
+    for idx in range(0, word_length - 1)
+        let char = strcharpart(a:word, idx, 1)
+        let width_accum += strdisplaywidth(char)
+        if width_accum > max_body_width
+            break
+        endif
+        let max_index = idx + 1
+        if idx > 1
+            let prev_char = strcharpart(a:word, idx - 1, 1)
+            if stridx(vowels, tolower(prev_char)) >= 0 &&
+                \ stridx(vowels, tolower(char)) < 0
+                let candidate_index = idx
+            endif
+        endif
+    endfor
+
+    if max_index < 2 || max_index >= word_length - 1
+        return [a:word]
+    endif
+
+    let split_index = candidate_index > 1 ? candidate_index : max_index
+    if split_index > word_length - 2
+        let split_index = max_index
+    endif
+
+    let head = strcharpart(a:word, 0, split_index) . '-'
+    let tail = strcharpart(a:word, split_index)
+    return [head, tail]
+endfunction
+
+function! s:justify_line(line, width)
+    let words = split(a:line, '\s\+')
+    if len(words) < 2
+        return a:line
+    endif
+
+    let base = join(words, ' ')
+    let base_width = strdisplaywidth(base)
+    let extra = a:width - base_width
+    if extra <= 0
+        return base
+    endif
+
+    let gaps = len(words) - 1
+    let base_spaces = extra / gaps
+    let remainder = extra % gaps
+    let padded = ''
+
+    for idx in range(len(words))
+        let padded .= words[idx]
+        if idx < gaps
+            let space_count = 1 + base_spaces
+            if idx < remainder
+                let space_count += 1
+            endif
+            let padded .= repeat(' ', space_count)
+        endif
+    endfor
+
+    return padded
+endfunction
+
+function! s:justify_lines(lines, options, widths)
+    let justify_last = get(a:options, 'justify_last_line', 0)
+    let justified = []
+    let last_index = len(a:lines) - 1
+
+    for idx in range(len(a:lines))
+        let line = a:lines[idx]
+        if idx == last_index && !justify_last
+            call add(justified, line)
+            continue
+        endif
+        if type(a:widths) == type({})
+            let target_width = idx == 0 ? a:widths.first : a:widths.other
+        else
+            let target_width = a:widths
+        endif
+        call add(justified, s:justify_line(line, target_width))
+    endfor
+
+    return justified
 endfunction
 
 function! cleave#set_textwidth_to_longest_line()
@@ -1119,36 +1404,111 @@ function! cleave#shift_paragraph(direction)
     endif
 endfunction
 
-function! cleave#wrap_paragraph(paragraph_lines, width)
+function! cleave#wrap_paragraph(paragraph_lines, options)
+    let options = s:with_default_reflow_options(a:options)
+    let width = options.width
+    let normalized_lines = s:normalize_wrapping_text(a:paragraph_lines,
+        \ options.dehyphenate)
+    let indent_source = get(a:paragraph_lines, 0, '')
+    let indent_info = s:extract_indent_and_hanging(indent_source)
+    let indent = indent_info.indent
+    let hanging = indent_info.hanging
+    let follow_indent = indent
+    let cleaned_lines = []
+
+    for idx in range(1, len(a:paragraph_lines) - 1)
+        let candidate = a:paragraph_lines[idx]
+        if !empty(trim(candidate))
+            let follow_indent = matchstr(candidate, '^\s*')
+            break
+        endif
+    endfor
+
+    for line in normalized_lines
+        let trimmed = trim(line)
+        if !empty(hanging) && stridx(trimmed, hanging) == 0
+            let trimmed = trim(trimmed[len(hanging):])
+        endif
+        call add(cleaned_lines, trimmed)
+    endfor
+
     " Join paragraph into single string
-    let text = join(a:paragraph_lines, ' ')
+    let text = join(cleaned_lines, ' ')
     let words = split(text, '\s\+')
-    let wrapped = []
+    let wrapped_content = []
     let current_line = ''
-    
-    for word in words
+    if empty(hanging)
+        let prefix_first = indent
+        let prefix_other = follow_indent
+    else
+        let hanging_pad = repeat(' ', strdisplaywidth(hanging))
+        let prefix_first = indent . hanging
+        let prefix_other = indent . hanging_pad
+    endif
+    let prefix_first_width = strdisplaywidth(prefix_first)
+    let prefix_other_width = strdisplaywidth(prefix_other)
+    let available_width_first = width - prefix_first_width
+    let available_width_other = width - prefix_other_width
+
+    if available_width_first < 1
+        let available_width_first = 1
+    endif
+    if available_width_other < 1
+        let available_width_other = 1
+    endif
+
+    let word_queue = copy(words)
+
+    let current_width = available_width_first
+    while !empty(word_queue)
+        let word = remove(word_queue, 0)
         let test_line = empty(current_line) ? word : current_line . ' ' . word
-        
-        " Use display width instead of byte length for proper multi-byte character handling
-        if strdisplaywidth(test_line) <= a:width
+        let line_width = strdisplaywidth(test_line)
+
+        if line_width <= current_width
             let current_line = test_line
         else
             if !empty(current_line)
-                call add(wrapped, current_line)
-                let current_line = word
-            else
-                " Single word longer than width - force it
-                call add(wrapped, word)
+                call add(wrapped_content, current_line)
                 let current_line = ''
+                call insert(word_queue, word, 0)
+                let current_width = available_width_other
+            else
+                if options.hyphenate
+                    let split = s:hyphenate_word(word, current_width,
+                        \ options)
+                    if len(split) > 1
+                        call add(wrapped_content, split[0])
+                        call insert(word_queue, split[1], 0)
+                    else
+                        call add(wrapped_content, word)
+                    endif
+                else
+                    call add(wrapped_content, word)
+                endif
+                let current_width = available_width_other
             endif
         endif
-    endfor
-    
+    endwhile
+
     if !empty(current_line)
-        call add(wrapped, current_line)
+        call add(wrapped_content, current_line)
     endif
-    
-    return !empty(wrapped) ? wrapped : ['']
+
+    if options.mode ==# 'justify'
+        let widths = {'first': available_width_first,
+            \ 'other': available_width_other}
+        let wrapped_content = s:justify_lines(wrapped_content, options,
+            \ widths)
+    endif
+
+    let wrapped = []
+    for idx in range(len(wrapped_content))
+        let prefix = idx == 0 ? prefix_first : prefix_other
+        call add(wrapped, prefix . wrapped_content[idx])
+    endfor
+
+    return !empty(wrapped) ? wrapped : [prefix_first]
 endfunction
 
 function! cleave#restore_paragraph_alignment(right_bufnr, original_right_lines, saved_para_starts)
@@ -1245,3 +1605,6 @@ function! cleave#set_text_properties()
     endfor
     
 endfunction
+
+let &cpo = s:save_cpo
+unlet s:save_cpo
