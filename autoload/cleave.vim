@@ -512,6 +512,12 @@ function! cleave#create_buffers(left_lines, right_lines, original_name, original
 
     call s:pad_buffer_lines(right_bufnr, len(a:left_lines))
 
+    " Update paragraph anchors on InsertLeave in either buffer
+    augroup CleaveInsertLeave
+        execute 'autocmd! InsertLeave <buffer=' . right_bufnr . '> call cleave#sync_right_paragraphs()'
+        execute 'autocmd! InsertLeave <buffer=' . left_bufnr . '> call cleave#set_text_properties()'
+    augroup END
+
     return [left_bufnr, right_bufnr]
 endfunction
 
@@ -903,7 +909,7 @@ function! s:locate_anchors_after_reflow(buffer_lines, anchors)
                     continue
                 endif
                 let first_word_in_line = matchstr(line_text, '\S\+')
-                if first_word_in_line == target_word && s:is_para_start(a:buffer_lines, line_idx)
+                if first_word_in_line == target_word
                     call add(updated_para_starts, line_idx + 1)
                     let last_found_line = line_idx + 1
                     let found = v:true
@@ -1568,6 +1574,42 @@ function! cleave#restore_paragraph_alignment(right_bufnr, original_right_lines, 
 
     " Step 3: Update right buffer
     call s:replace_buffer_lines(a:right_bufnr, adjusted_lines)
+endfunction
+
+function! cleave#sync_right_paragraphs()
+    let [original_bufnr, left_bufnr, right_bufnr] = s:resolve_buffers()
+    if original_bufnr == -1 || left_bufnr == -1 || right_bufnr == -1
+        return
+    endif
+
+    let right_lines = getbufline(right_bufnr, 1, '$')
+    let left_lines = getbufline(left_bufnr, 1, '$')
+
+    " Find paragraph starts that context-aware detection sees but simple
+    " detection misses — these need a blank separator line inserted before
+    " them so that simple s:extract_paragraphs agrees with context-aware.
+    let ctx_starts = s:para_starts_ctx(right_lines, left_lines)
+    let simple_starts = s:para_starts(right_lines)
+
+    let missing = []
+    for s in ctx_starts
+        if index(simple_starts, s) == -1
+            call add(missing, s)
+        endif
+    endfor
+
+    if !empty(missing)
+        " Insert blank lines in reverse order to preserve line numbers
+        let save_cursor = getcurpos()
+        for i in range(len(missing) - 1, 0, -1)
+            let lnum = missing[i]
+            call appendbufline(right_bufnr, lnum - 1, '')
+        endfor
+        call setpos('.', save_cursor)
+    endif
+
+    call s:pad_right_to_left(left_bufnr, right_bufnr)
+    call cleave#set_text_properties()
 endfunction
 
 function! cleave#set_text_properties()
