@@ -176,6 +176,29 @@ function! s:replace_buffer_lines(bufnr, lines)
     endif
 endfunction
 
+function! s:pad_buffer_lines(bufnr, target_len)
+    if a:target_len < 1
+        return
+    endif
+
+    let current_len = len(getbufline(a:bufnr, 1, '$'))
+    if current_len >= a:target_len
+        return
+    endif
+
+    let padding = repeat([''], a:target_len - current_len)
+    call setbufline(a:bufnr, current_len + 1, padding)
+endfunction
+
+function! s:pad_right_to_left(left_bufnr, right_bufnr)
+    if a:left_bufnr == -1 || a:right_bufnr == -1
+        return
+    endif
+
+    let left_len = len(getbufline(a:left_bufnr, 1, '$'))
+    call s:pad_buffer_lines(a:right_bufnr, left_len)
+endfunction
+
 " Shared teardown for undo_cleave and join_buffers: close windows, delete
 " temp buffers, clear state
 function! s:teardown_cleave(original_bufnr, left_bufnr, right_bufnr)
@@ -486,6 +509,8 @@ function! cleave#create_buffers(left_lines, right_lines, original_name, original
     setlocal filetype=right
     " Set textwidth based on longest line in right buffer
     call cleave#set_textwidth_to_longest_line()
+
+    call s:pad_buffer_lines(right_bufnr, len(a:left_lines))
 
     return [left_bufnr, right_bufnr]
 endfunction
@@ -828,6 +853,7 @@ function! cleave#reflow_right_buffer(options, current_bufnr, left_bufnr,
     
     " Step 4: Update the right buffer
     call s:replace_buffer_lines(bufnr('%'), new_buffer_lines)
+    call s:pad_right_to_left(a:left_bufnr, a:right_bufnr)
     execute 'setlocal textwidth=' . width
 endfunction
 
@@ -929,6 +955,7 @@ function! cleave#reflow_left_buffer(options, current_bufnr, left_bufnr,
 
     call s:apply_post_reflow_ui(a:options.width, a:current_bufnr,
         \ a:right_bufnr, right_lines, updated_para_starts)
+    call s:pad_right_to_left(a:left_bufnr, a:right_bufnr)
 endfunction
 
 function! cleave#reflow_text(lines, options)
