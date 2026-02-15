@@ -594,9 +594,35 @@ function! cleave#reflow_right_buffer(new_width, current_bufnr, left_bufnr, right
 
     " Step 2: Reflow each paragraph individually to new width
     let reflowed_paragraphs = []
+    let paragraph_index = 0
+    let inside_fence = v:false
+    let fence_pattern = '^\s*```'
     for para_lines in paragraphs
-        let reflowed_para = cleave#wrap_paragraph(para_lines, a:new_width)
+        let reflowed_para = []
+        if !inside_fence && paragraph_index < len(para_starts)
+            let start_line = para_starts[paragraph_index]
+            if start_line > 0 && start_line <= len(current_lines)
+                let line_idx = start_line - 1
+                let line_text = current_lines[line_idx]
+                if line_text =~# fence_pattern
+                    let inside_fence = v:true
+                endif
+            endif
+        endif
+
+        if inside_fence
+            let reflowed_para = para_lines
+        else
+            let reflowed_para = cleave#wrap_paragraph(para_lines, a:new_width)
+        endif
+
         call add(reflowed_paragraphs, reflowed_para)
+        for line_text in para_lines
+            if line_text =~# fence_pattern
+                let inside_fence = !inside_fence
+            endif
+        endfor
+        let paragraph_index += 1
     endfor
     
     " Step 3: Reconstruct buffer preserving original positions when possible
@@ -676,19 +702,33 @@ endfunction
 function! s:locate_anchors_after_reflow(buffer_lines, anchors)
     let updated_para_starts = []
     let last_found_line = 0
+    let inside_fence = v:false
+    let fence_pattern = '^\s*```'
     for i in range(len(a:anchors))
         let target_word = a:anchors[i]
         if len(target_word) > 0
             let found = v:false
-            for line_idx in range(last_found_line, len(a:buffer_lines))
-                let first_word_in_line = matchstr(a:buffer_lines[line_idx], '\S\+')
+            let line_idx = last_found_line
+            while line_idx < len(a:buffer_lines)
+                let line_text = a:buffer_lines[line_idx]
+                if line_text =~# fence_pattern
+                    let inside_fence = !inside_fence
+                    let line_idx += 1
+                    continue
+                endif
+                if inside_fence
+                    let line_idx += 1
+                    continue
+                endif
+                let first_word_in_line = matchstr(line_text, '\S\+')
                 if first_word_in_line == target_word && s:is_para_start(a:buffer_lines, line_idx)
                     call add(updated_para_starts, line_idx + 1)
                     let last_found_line = line_idx + 1
                     let found = v:true
                     break
                 endif
-            endfor
+                let line_idx += 1
+            endwhile
             if !found
                 echomsg "CleaveReflow WARNING: Could not find paragraph starting with '" . target_word . "'"
             endif
@@ -736,28 +776,63 @@ endfunction
 function! cleave#reflow_text(lines, width)
     let reflowed = []
     let current_paragraph = []
-    
+    let paragraph_indent = ''
+    let inside_fence = v:false
+    let fence_pattern = '^\s*```'
+
     for line in a:lines
         let trimmed = trim(line)
-        
+
+        if line =~# fence_pattern
+            if !empty(current_paragraph)
+                let wrapped = cleave#wrap_paragraph(current_paragraph, a:width)
+                if !empty(paragraph_indent) && !empty(wrapped)
+                    let wrapped[0] = paragraph_indent . wrapped[0]
+                endif
+                call extend(reflowed, wrapped)
+                let current_paragraph = []
+                let paragraph_indent = ''
+            endif
+            call add(reflowed, line)
+            let inside_fence = !inside_fence
+            continue
+        endif
+
+        if inside_fence
+            call add(reflowed, line)
+            continue
+        endif
+
         if empty(trimmed)
             " Empty line - end current paragraph
             if !empty(current_paragraph)
-                call extend(reflowed, cleave#wrap_paragraph(current_paragraph, a:width))
+                let wrapped = cleave#wrap_paragraph(current_paragraph, a:width)
+                if !empty(paragraph_indent) && !empty(wrapped)
+                    let wrapped[0] = paragraph_indent . wrapped[0]
+                endif
+                call extend(reflowed, wrapped)
                 let current_paragraph = []
+                let paragraph_indent = ''
             endif
             call add(reflowed, '')
         else
-            " Add to current paragraph
+            if empty(current_paragraph)
+                let paragraph_indent = matchstr(line, '^\s*')
+            endif
+            " Add to current paragraph, trimming for clean wrapping.
             call add(current_paragraph, trimmed)
         endif
     endfor
-    
+
     " Handle final paragraph
     if !empty(current_paragraph)
-        call extend(reflowed, cleave#wrap_paragraph(current_paragraph, a:width))
+        let wrapped = cleave#wrap_paragraph(current_paragraph, a:width)
+        if !empty(paragraph_indent) && !empty(wrapped)
+            let wrapped[0] = paragraph_indent . wrapped[0]
+        endif
+        call extend(reflowed, wrapped)
     endif
-    
+
     return reflowed
 endfunction
 
@@ -1143,17 +1218,19 @@ function! cleave#set_text_properties()
             let left_line = left_lines[line_num - 1]  " Convert to 0-based for array access
             if trim(left_line) != ''
                 " Add text property to the first word of the line
-                " Extract the first word and calculate its proper character length
-                let first_word = matchstr(trim(left_line), '\S\+')
-                if !empty(first_word)
-                    " Calculate the character length (not byte length) of the first word
-                    let first_word_char_len = strchars(first_word)
-                    call prop_add(line_num, 1, {
-                        \ 'type': prop_type,
-                        \ 'length': first_word_char_len,
-                        \ 'bufnr': left_bufnr
-                        \ })
-                    let properties_added += 1
+                let match_data = matchstrpos(left_line, '\S\+')
+                if match_data[1] >= 0
+                    let first_word = match_data[0]
+                    let start_col = match_data[1] + 1
+                    let length = match_data[2] - match_data[1]
+                    if !empty(first_word) && length > 0
+                        call prop_add(line_num, start_col, {
+                            \ 'type': prop_type,
+                            \ 'length': length,
+                            \ 'bufnr': left_bufnr
+                            \ })
+                        let properties_added += 1
+                    endif
                 endif
             else
                 " Line is empty, add text property to first column

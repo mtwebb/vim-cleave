@@ -198,6 +198,32 @@ Paragraph shifting relies on these helpers:
 - Handle multiple cleave operations
 
 ### Synchronization
+
+## Reflow Policy Notes
+
+When refining `CleaveReflow`, consider these approaches for preserving
+structure after wrapping. Revisit after more real-world usage.
+
+Option 1: Preserve leading indent per paragraph.
+- Detect the leading whitespace from the first non-empty line.
+- Strip that indent before wrapping, then reapply it to each wrapped line.
+
+Option 2: Preserve hanging indent for list items.
+- Detect bullet/number prefixes (e.g., `- `, `* `, `1. `).
+- Keep the prefix on the first line and indent wrapped lines to align with
+  the text after the bullet, keeping any leading indent before the bullet.
+
+Option 3: Preserve relative indentation for all lines.
+- Avoid trimming indentation on input lines.
+- When wrapping, reuse each line's indentation so indentation is not lost.
+
+Option 4: Skip reflow for preformatted blocks.
+- Detect code blocks or heavily indented text and leave them as-is.
+
+Option 5: Hybrid heuristic.
+- Use list-aware wrapping when a paragraph looks like a list item.
+- Otherwise preserve consistent paragraph indent.
+- Skip preformatted blocks.
 - Option to keep left/right buffers synchronized
 - Update corresponding buffer when one is modified
 - Handle cursor movement synchronization

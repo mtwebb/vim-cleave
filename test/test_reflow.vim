@@ -114,6 +114,42 @@ function! TestReflowEdgeCases()
     echo "Edge cases test completed"
 endfunction
 
+function! TestReflowFencedBlocks()
+    new
+    let before_line = 'Paragraph before the fence should wrap to a ' .
+        \ 'smaller width for testing.'
+    let code_line = 'let example_code = "' .
+        \ 'This line should not be wrapped even if it is long"'
+    let after_line = 'Paragraph after fence should wrap as well.'
+    let another_line = 'let another_line = "Keep as-is"'
+    put =[before_line,
+        \ '',
+        \ '```',
+        \ code_line,
+        \ another_line,
+        \ '```',
+        \ '',
+        \ after_line]
+    1delete
+    setlocal nomodified
+
+    call cursor(1, 20)
+    CleaveAtCursor
+    CleaveReflow 20
+
+    let lines = getline(1, '$')
+    let fence_start = index(lines, '```')
+    let fence_end = index(lines, '```', fence_start + 1)
+    call AssertEqual(3, fence_start + 1, 'Fence start line preserved')
+    call AssertEqual(6, fence_end + 1, 'Fence end line preserved')
+    call AssertEqual(code_line, lines[fence_start + 1], 'Fence content preserved')
+    call AssertEqual(another_line, lines[fence_start + 2], 'Fence content preserved')
+
+    call cleave#undo_cleave()
+    bdelete!
+    echo "Fenced reflow test completed"
+endfunction
+
 function! TestRecleaveLast()
     new
     put =['One line of text for cleave.',
@@ -264,6 +300,8 @@ function! RunReflowTests()
     call TestReflowRightBuffer()
     echo ""
     call TestReflowEdgeCases()
+    echo ""
+    call TestReflowFencedBlocks()
     echo ""
     call TestShiftRightParagraph()
     echo ""
