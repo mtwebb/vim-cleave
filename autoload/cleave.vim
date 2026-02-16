@@ -1732,19 +1732,14 @@ function! cleave#sync_left_paragraphs()
         return
     endif
 
-    let right_lines = getbufline(right_bufnr, 1, '$')
     let left_lines = getbufline(left_bufnr, 1, '$')
-    let right_para_starts = s:para_starts_ctx(right_lines, left_lines)
-    if empty(right_para_starts)
+    let left_para_lines = cleave#get_left_buffer_paragraph_lines()
+    if empty(left_para_lines)
         call cleave#set_text_properties()
         return
     endif
 
-    let target_positions = s:locate_anchors_after_reflow(
-        \ left_lines, s:capture_paragraph_anchors(left_lines, right_para_starts))
-    if !empty(target_positions)
-        call cleave#place_right_paragraphs_at_lines(target_positions, left_lines)
-    endif
+    call cleave#place_right_paragraphs_at_lines(left_para_lines, left_lines)
 
     call s:pad_right_to_left(left_bufnr, right_bufnr)
     call cleave#set_text_properties()
