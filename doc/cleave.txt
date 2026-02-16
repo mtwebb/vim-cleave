@@ -6,8 +6,9 @@ CONTENTS                                     *cleave-contents*
   1. Introduction...................|cleave-introduction|
   2. Commands.......................|cleave-commands|
   3. Options........................|cleave-options|
-  4. Examples.......................|cleave-examples|
-  5. Requirements...................|cleave-requirements|
+  4. Modelines......................|cleave-modelines|
+  5. Examples.......................|cleave-examples|
+  6. Requirements...................|cleave-requirements|
 
 ==============================================================================
 INTRODUCTION                                 *cleave-introduction*
@@ -23,6 +24,7 @@ Key features:
 - Text reflow with paragraph alignment preservation
 - Spatial preservation of cursor position and scrolling
 - Intelligent paragraph boundary detection
+- Modeline-driven settings for repeatable cleave sessions
 
 ==============================================================================
 COMMANDS                                     *cleave-commands*
@@ -267,6 +269,98 @@ OPTIONS                                      *cleave-options*
 
     Default: `0`
 
+*g:cleave_modeline*
+    Controls how vim-cleave interacts with modelines in files. Modelines
+    allow cleave settings to be embedded directly in a file so that the
+    next time you open and cleave the file, the same settings are applied
+    automatically.
+
+    Values:
+    - `read`   Read modeline on cleave start but never write it back.
+               Settings from the modeline (or inferred defaults) are
+               applied when cleaving. (default)
+    - `update` Read modeline on cleave start AND write it back on
+               `:CleaveJoin`. This keeps the modeline in sync with the
+               current settings so the next cleave session is consistent.
+    - `ignore` Skip modeline processing entirely. The cleave column is
+               determined only by the cursor position or an explicit
+               `:CleaveAtColumn` argument.
+
+    Default: `read`
+
+    Example: >
+        let g:cleave_modeline = 'update'
+<
+
+==============================================================================
+MODELINES                                    *cleave-modelines*
+
+Vim-cleave can read and write a `vim:` modeline embedded in your file to
+drive cleave settings automatically. This makes cleave sessions repeatable
+across file opens without needing to remember column positions or options.
+
+Modeline format: >
+    vim: cc=91 tw=79 fdc=5 wm=3 ve=all
+<
+The modeline uses abbreviated option names to keep the line short so it
+does not get split across left and right buffers.
+
+                                             *cleave-modeline-settings*
+Settings recognized by vim-cleave:
+
+    `cc`   Cleave column (colorcolumn). The column at which the buffer is
+           split into left and right sides.
+
+    `tw`   Text width. Sets the left buffer's 'textwidth' used for reflow.
+
+    `fdc`  Fold column. Sets the left buffer's 'foldcolumn' for readability.
+
+    `wm`   Wrap margin / gutter. Sets `g:cleave_gutter`, the space between
+           left text and right notes when joining.
+
+    `ve`   Virtual edit. Sets 'virtualedit' for editing (typically `all`
+           for the right buffer).
+
+Any other options in the modeline (e.g., `ft=markdown`) are preserved
+when the modeline is updated.
+
+                                             *cleave-modeline-behavior*
+Behavior on cleave start (~:CleaveAtCursor~, ~:CleaveAtColumn~):
+
+    When `g:cleave_modeline` is not `ignore`:
+    1. The first 5 and last 5 lines of the buffer are scanned for a
+       `vim:` modeline.
+    2. If a modeline is found, its settings are extracted and applied.
+    3. If no modeline is found, settings are inferred from buffer options
+       ('textwidth', 'foldcolumn', 'colorcolumn', 'wrapmargin').
+    4. The `cc` value is used as the cleave column when no explicit column
+       argument is given.
+
+Behavior on join (~:CleaveJoin~):
+
+    When `g:cleave_modeline` is `update`:
+    1. Current settings (cleave column, textwidth, foldcolumn, gutter,
+       virtualedit) are collected from the left and right buffers.
+    2. If a modeline exists, it is updated in place. Non-cleave options
+       are preserved.
+    3. If no modeline exists, a new one is appended to the end of the
+       file.
+    4. The buffer's window-local options ('colorcolumn', 'foldcolumn')
+       and global 'virtualedit' are set to match.
+
+                                             *cleave-modeline-heuristics*
+When no modeline is present, vim-cleave infers settings:
+
+    `cc`   Prefers 'colorcolumn' if set to a number. Otherwise uses
+           textwidth + wrapmargin. Falls back to 80.
+    `tw`   Prefers existing 'textwidth'. Otherwise inferred from the
+           average non-empty line length (capped at 79).
+    `fdc`  Prefers existing 'foldcolumn'. Otherwise inferred from
+           leading-indent variance (0 if uniform).
+    `wm`   Prefers existing 'wrapmargin'. Otherwise uses `g:cleave_gutter`
+           (default 3).
+    `ve`   Defaults to `all`.
+
 ==============================================================================
 EXAMPLES                                     *cleave-examples*
 
@@ -292,6 +386,25 @@ Basic workflow: >
     
     " Or restore original buffer
     :CleaveUndo
+
+Modeline workflow: >
+    " Enable modeline updates in your vimrc
+    let g:cleave_modeline = 'update'
+
+    " Open a file with a modeline at the end:
+    "   vim: cc=91 tw=79 fdc=5 wm=3 ve=all
+
+    " Cleave without specifying a column — cc=91 is used automatically
+    :CleaveAtCursor
+
+    " Reflow and edit as needed
+    :CleaveReflow 65
+
+    " Join — modeline is updated with new settings
+    :CleaveJoin
+
+    " Next time you open the file, CleaveAtCursor will use the
+    " updated modeline settings automatically
 
 ==============================================================================
 REQUIREMENTS                                 *cleave-requirements*
