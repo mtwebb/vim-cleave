@@ -136,6 +136,51 @@ endfunction
 
 ## Advanced Features
 
+## Modeline-Driven Cleave Plan
+
+Goal: read a vim modeline like `vim: cc=91 tw=79 ve=all fdc=5 wm=3` to
+drive cleave setup, and update that modeline after reflow so the next open
+auto-cleaves with consistent settings.
+Note: modelines should use abbreviations to be as short as possible so they do
+not get split across left and right buffers
+
+### Modeline Schema
+- `cc` (columncolor): cleave column.
+- `tw` (textwidth): left-buffer textwidth used for reflow.
+- `fdc` (foldcolumn): left margin used for readability.
+- `wm` (wrapmargin): gutter between left text and right notes.
+- `ve` (virtualedit): right-buffer editing behavior.
+
+### Implementation Plan
+1. Add a modeline parser for `vim:` lines that extracts only the cleave
+   settings above while preserving unrelated options.
+1. On cleave start, read modeline settings from the merged buffer and apply
+   them to both left/right buffers.
+1. Use `cc` as the cleave column when present; fall back to cursor column or
+   explicit `:CleaveAt` value otherwise.
+1. After reflow, update the modeline in the merged buffer to reflect the
+   current settings so the next open can auto-cleave.
+1. Guard updates if buffer is not modifiable or modeline is in a protected
+   region; keep behavior opt-in via a `g:cleave_modeline` mode
+   (`read`, `update`, `ignore`).
+1. Add tests to ensure parsing, application, and update behavior.
+
+### Modeline Helper
+- Add `cleave#modeline#ensure()` to insert or update a modeline.
+1. Scan first 5 and last 5 lines for an existing `vim:` modeline.
+1. If missing, append a new modeline to the end of the merged buffer.
+1. When updating, preserve non-cleave options and keep order stable.
+
+### Heuristics For Missing Modelines
+- `cc`: prefer `colorcolumn`, else `textwidth + wrapmargin` if `textwidth`
+  is set, else 79 or 80.
+- `tw`: prefer existing `textwidth`, else infer from average non-empty line
+  length in left-side content (cap at 79/80).
+- `fdc`: prefer `foldcolumn`, else infer from leading-indent variance.
+- `wm`: prefer `wrapmargin`, else infer from median gap between left/right
+  text in the merged buffer.
+- `ve`: default `all` for right-buffer editing, else keep current value.
+
 ### Paragraph Shifting
 
 The plugin provides paragraph shifting to adjust alignment between the left
