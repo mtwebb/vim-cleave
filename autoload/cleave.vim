@@ -1,5 +1,4 @@
 " cleave.vim - autoload script for cleave plugin
-
 let s:save_cpo = &cpo
 set cpo&vim
 
@@ -1462,8 +1461,9 @@ function! cleave#shift_paragraph(direction)
     let cursor_col = col('.')
     let target_bufnr = current_side ==# 'right' ? right_bufnr : left_bufnr
     let target_lines = getbufline(target_bufnr, 1, '$')
+    let total_lines = len(target_lines)
 
-    if cursor_line < 1 || cursor_line > len(target_lines)
+    if cursor_line < 1 || cursor_line > total_lines
         echoerr "Cleave: Cursor out of range"
         return
     endif
@@ -1474,28 +1474,20 @@ function! cleave#shift_paragraph(direction)
         return
     endif
 
-    let para_starts = []
-    let para_lengths = []
     let para_index = -1
-    let cursor_offset = 0
-    let cursor_column_offset = col('.') - 1
 
     for i in range(len(extracted))
         let start_line = extracted[i].start
         let para_len = len(extracted[i].content)
-        call add(para_starts, start_line)
-        call add(para_lengths, para_len)
         if cursor_line >= start_line && cursor_line < start_line + para_len
             let para_index = i
-            let cursor_offset = cursor_line - start_line
         endif
     endfor
 
     if para_index == -1
-        for i in range(len(para_starts))
-            if para_starts[i] < cursor_line
+        for i in range(len(extracted))
+            if extracted[i].start < cursor_line
                 let para_index = i
-                let cursor_offset = min([cursor_line - para_starts[i], para_lengths[i] - 1])
             endif
         endfor
     endif
@@ -1505,42 +1497,32 @@ function! cleave#shift_paragraph(direction)
         return
     endif
 
-    let candidate_start = para_starts[para_index] + move
-    if candidate_start < 1
-        return
-    endif
+    let para_start = extracted[para_index].start
+    let para_len = len(extracted[para_index].content)
+    let para_end = para_start + para_len - 1
 
-    if move < 0 && para_index > 0
-        let prev_end = para_starts[para_index - 1] + para_lengths[para_index - 1] - 1
-        if candidate_start <= prev_end + 1
+    if move == -1
+        let blank_line = para_start - 1
+        if blank_line < 1 || trim(target_lines[blank_line - 1]) !=# ''
             return
         endif
-    endif
-    if move > 0 && para_index < len(para_starts) - 1
-        let next_start = para_starts[para_index + 1]
-        if (candidate_start + para_lengths[para_index] - 1) >= next_start - 1
+        call deletebufline(target_bufnr, blank_line)
+        call appendbufline(target_bufnr, para_end - 1, '')
+    else
+        let blank_line = para_end + 1
+        if blank_line > total_lines || trim(target_lines[blank_line - 1]) !=# ''
             return
         endif
+        call deletebufline(target_bufnr, blank_line)
+        call appendbufline(target_bufnr, para_start - 1, '')
     endif
-
-    let target_starts = copy(para_starts)
-    let target_starts[para_index] = candidate_start
-    let paragraphs = map(copy(extracted), 'v:val.content')
-    let placement = s:build_paragraph_placement(paragraphs, target_starts)
-    call s:replace_buffer_lines(target_bufnr, placement.lines)
-
-    let peer_bufnr = current_side ==# 'right' ? left_bufnr : right_bufnr
-    let peer_len = len(getbufline(peer_bufnr, 1, '$'))
-    call s:pad_buffer_lines(target_bufnr, peer_len)
 
     call cleave#set_text_properties()
 
-    if para_index < len(placement.positions)
-        let new_line = placement.positions[para_index] + cursor_offset
-        let new_line_text = get(getbufline(target_bufnr, new_line, new_line), 0, '')
-        let new_col = current_side ==# 'right' ? min([cursor_column_offset + 1, len(new_line_text) + 1]) : min([cursor_col, len(new_line_text) + 1])
-        call cursor(max([1, new_line]), new_col)
-    endif
+    let new_line = max([1, cursor_line + move])
+    let new_line_text = get(getbufline(target_bufnr, new_line, new_line), 0, '')
+    let new_col = min([cursor_col, len(new_line_text) + 1])
+    call cursor(new_line, new_col)
 endfunction
 
 function! cleave#wrap_paragraph(paragraph_lines, options)
