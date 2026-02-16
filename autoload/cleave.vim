@@ -565,7 +565,7 @@ function! cleave#create_buffers(left_lines, right_lines, original_name, original
     " Update paragraph anchors on InsertLeave in either buffer
     augroup CleaveInsertLeave
         execute 'autocmd! InsertLeave <buffer=' . right_bufnr . '> call cleave#sync_right_paragraphs()'
-        execute 'autocmd! InsertLeave <buffer=' . left_bufnr . '> call cleave#set_text_properties()'
+        execute 'autocmd! InsertLeave <buffer=' . left_bufnr . '> call cleave#sync_left_paragraphs()'
     augroup END
 
     return [left_bufnr, right_bufnr]
@@ -1403,8 +1403,16 @@ function! cleave#place_right_paragraphs_at_lines(target_line_numbers, ...)
         let extracted = s:extract_paragraphs(current_lines)
     endif
     let paragraphs = map(copy(extracted), 'v:val.content')
+    let paragraph_starts = map(copy(extracted), 'v:val.start')
 
-    let placement = s:build_paragraph_placement(paragraphs, a:target_line_numbers)
+    let target_lines = copy(a:target_line_numbers)
+    if len(target_lines) < len(paragraphs)
+        for idx in range(len(target_lines), len(paragraphs) - 1)
+            call add(target_lines, paragraph_starts[idx])
+        endfor
+    endif
+
+    let placement = s:build_paragraph_placement(paragraphs, target_lines)
     call s:replace_buffer_lines(right_bufnr, placement.lines)
     return placement.positions
 endfunction
@@ -1704,6 +1712,38 @@ function! cleave#sync_right_paragraphs()
             call appendbufline(right_bufnr, lnum - 1, '')
         endfor
         call setpos('.', save_cursor)
+    endif
+
+    let right_lines = getbufline(right_bufnr, 1, '$')
+    let left_lines = getbufline(left_bufnr, 1, '$')
+    let target_positions = s:locate_anchors_after_reflow(
+        \ left_lines, s:capture_paragraph_anchors(left_lines, ctx_starts))
+    if !empty(target_positions)
+        call cleave#place_right_paragraphs_at_lines(target_positions, left_lines)
+    endif
+
+    call s:pad_right_to_left(left_bufnr, right_bufnr)
+    call cleave#set_text_properties()
+endfunction
+
+function! cleave#sync_left_paragraphs()
+    let [original_bufnr, left_bufnr, right_bufnr] = s:resolve_buffers()
+    if original_bufnr == -1 || left_bufnr == -1 || right_bufnr == -1
+        return
+    endif
+
+    let right_lines = getbufline(right_bufnr, 1, '$')
+    let left_lines = getbufline(left_bufnr, 1, '$')
+    let right_para_starts = s:para_starts_ctx(right_lines, left_lines)
+    if empty(right_para_starts)
+        call cleave#set_text_properties()
+        return
+    endif
+
+    let target_positions = s:locate_anchors_after_reflow(
+        \ left_lines, s:capture_paragraph_anchors(left_lines, right_para_starts))
+    if !empty(target_positions)
+        call cleave#place_right_paragraphs_at_lines(target_positions, left_lines)
     endif
 
     call s:pad_right_to_left(left_bufnr, right_bufnr)
