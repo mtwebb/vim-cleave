@@ -1410,16 +1410,18 @@ function! cleave#place_right_paragraphs_at_lines(target_line_numbers, ...)
 endfunction
 
 function! cleave#align_right_to_left_paragraphs()
-    " Aligns right buffer paragraphs to match left buffer paragraph positions
-    " Gets paragraph line numbers from left buffer text properties and places
-    " right buffer paragraphs at those positions
-    
+    let [original_bufnr, left_bufnr, right_bufnr] = s:resolve_buffers()
+    if original_bufnr == -1 || left_bufnr == -1 || right_bufnr == -1
+        echoerr "Cleave: Not a cleave buffer or buffers not found."
+        return
+    endif
+
     let left_para_lines = cleave#get_left_buffer_paragraph_lines()
     if empty(left_para_lines)
         echomsg "Cleave: No paragraph positions found in left buffer"
         return
     endif
-    
+
     let left_lines = getbufline(left_bufnr, 1, '$')
     let actual_positions = cleave#place_right_paragraphs_at_lines(left_para_lines, left_lines)
     echomsg "Cleave: Aligned right buffer paragraphs at lines: " . string(actual_positions)
