@@ -1429,8 +1429,7 @@ function! cleave#align_right_to_left_paragraphs()
         return
     endif
 
-    let left_lines = getbufline(left_bufnr, 1, '$')
-    let actual_positions = cleave#place_right_paragraphs_at_lines(left_para_lines, left_lines)
+    let actual_positions = cleave#place_right_paragraphs_at_lines(left_para_lines)
     echomsg "Cleave: Aligned right buffer paragraphs at lines: " . string(actual_positions)
 endfunction
 
@@ -1517,7 +1516,9 @@ function! cleave#shift_paragraph(direction)
         call appendbufline(target_bufnr, para_start - 1, '')
     endif
 
-    call cleave#set_text_properties()
+    if current_side ==# 'right'
+        call cleave#set_text_properties()
+    endif
 
     let new_line = max([1, cursor_line + move])
     let new_line_text = get(getbufline(target_bufnr, new_line, new_line), 0, '')
