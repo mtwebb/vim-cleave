@@ -429,6 +429,20 @@ function! cleave#split_buffer(bufnr, ...)
     call s:split_buffer_at_col(a:bufnr, cleave_col)
 endfunction
 
+function! cleave#split_at_colorcolumn()
+    let cc = &colorcolumn
+    if empty(cc)
+        echoerr "Cleave: colorcolumn is not set"
+        return
+    endif
+    let col = str2nr(split(cc, ',')[0])
+    if col <= 0
+        echoerr "Cleave: colorcolumn value must be a positive number"
+        return
+    endif
+    call cleave#split_buffer(bufnr('%'), col)
+endfunction
+
 function! cleave#toggle_reflow_mode()
     let current = s:current_reflow_mode()
     let next_mode = current ==# 'justify' ? 'ragged' : 'justify'
