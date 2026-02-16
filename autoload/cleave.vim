@@ -396,14 +396,35 @@ function! cleave#split_buffer(bufnr, ...)
         endif
         call setbufvar(a:bufnr, 'cleave_reflow_mode', mode)
     endif
+
+    " Read modeline settings if g:cleave_modeline is not 'ignore'
+    let modeline_settings = {}
+    if cleave#modeline#mode() !=# 'ignore'
+        let parsed = cleave#modeline#parse(a:bufnr)
+        if parsed.line > 0
+            let modeline_settings = cleave#modeline#apply(parsed.settings)
+        else
+            let modeline_settings = cleave#modeline#apply(
+                \ cleave#modeline#infer(a:bufnr))
+        endif
+    endif
+
     " 1. Determine Cleave Column
     let cleave_col = 0
     if a:0 > 0
         " Parameter is interpreted as virtual column position
         let cleave_col = a:1
+    elseif !empty(modeline_settings) && get(modeline_settings, 'cc', 0) > 0
+        " Use cc from modeline
+        let cleave_col = modeline_settings.cc
     else
         " Use virtual column position of cursor
         let cleave_col = virtcol('.')
+    endif
+
+    " Apply modeline settings to buffer before splitting
+    if !empty(modeline_settings)
+        call s:apply_modeline_to_buffer(a:bufnr, modeline_settings)
     endif
 
     call s:split_buffer_at_col(a:bufnr, cleave_col)
@@ -414,6 +435,20 @@ function! cleave#toggle_reflow_mode()
     let next_mode = current ==# 'justify' ? 'ragged' : 'justify'
     call setbufvar(bufnr('%'), 'cleave_reflow_mode', next_mode)
     echomsg "Cleave: Reflow mode set to " . next_mode
+endfunction
+
+" Apply modeline settings to the buffer before cleaving
+function! s:apply_modeline_to_buffer(bufnr, settings)
+    if has_key(a:settings, 'tw') && a:settings.tw > 0
+        call setbufvar(a:bufnr, '&textwidth', a:settings.tw)
+    endif
+    if has_key(a:settings, 'fdc')
+        call setbufvar(a:bufnr, '&foldcolumn', a:settings.fdc)
+    endif
+    if has_key(a:settings, 'wm') && a:settings.wm >= 0
+        let g:cleave_gutter = a:settings.wm
+    endif
+    call setbufvar(a:bufnr, 'cleave_modeline_settings', a:settings)
 endfunction
 
 function! s:split_buffer_at_col(bufnr, cleave_col)
@@ -443,7 +478,22 @@ function! s:split_buffer_at_col(bufnr, cleave_col)
         " 4. Window Management
         call cleave#setup_windows(a:cleave_col, left_bufnr, right_bufnr, original_winid, original_cursor, original_foldcolumn)
 
-        " 5. Store cleave state on each buffer
+        " 5. Apply modeline settings that need window/global context
+        let ml_settings = getbufvar(original_bufnr, 'cleave_modeline_settings', {})
+        if !empty(ml_settings)
+            if has_key(ml_settings, 've') && !empty(ml_settings.ve)
+                let &virtualedit = ml_settings.ve
+            endif
+            if has_key(ml_settings, 'cc') && ml_settings.cc > 0
+                let left_winid = get(win_findbuf(left_bufnr), 0, -1)
+                if left_winid != -1
+                    call setwinvar(win_id2win(left_winid),
+                        \ '&colorcolumn', string(ml_settings.cc))
+                endif
+            endif
+        endif
+
+        " 6. Store cleave state on each buffer
         let left_state = {'original': original_bufnr, 'side': 'left',
             \ 'peer': right_bufnr, 'col': a:cleave_col}
         let right_state = {'original': original_bufnr, 'side': 'right',
@@ -454,7 +504,7 @@ function! s:split_buffer_at_col(bufnr, cleave_col)
         " Remember last cleave column on the original buffer
         call setbufvar(original_bufnr, 'cleave_col_last', a:cleave_col)
 
-        " 6. Initialize text properties to show paragraph alignment
+        " 7. Initialize text properties to show paragraph alignment
         call cleave#set_text_properties()
     finally
         let &hidden = saved_hidden
@@ -619,7 +669,38 @@ function! cleave#join_buffers()
         call setbufvar(original_bufnr, 'cleave_col_last', last_col)
     endif
 
+    " Collect modeline settings before teardown (buffers still exist)
+    let ml_settings = getbufvar(original_bufnr, 'cleave_modeline_settings', {})
+    if empty(ml_settings)
+        let ml_settings = {}
+    endif
+    let ml_settings.cc = cleave_col
+    let ml_settings.tw = getbufvar(left_bufnr, '&textwidth', 0)
+    let ml_settings.fdc = getbufvar(left_bufnr, '&foldcolumn', 0)
+    let ml_settings.wm = g:cleave_gutter
+    let ve_val = getbufvar(right_bufnr, '&virtualedit', '')
+    let ml_settings.ve = !empty(ve_val) ? ve_val : 'all'
+
+    " Write modeline text before teardown (original buffer content exists)
+    call cleave#modeline#ensure(original_bufnr, ml_settings)
+
     call s:teardown_cleave(original_bufnr, left_bufnr, right_bufnr)
+
+    " Apply window-local settings after teardown (original buffer is now visible)
+    let winid = get(win_findbuf(original_bufnr), 0, -1)
+    if winid != -1
+        if has_key(ml_settings, 'cc') && ml_settings.cc > 0
+            call setwinvar(win_id2win(winid),
+                \ '&colorcolumn', string(ml_settings.cc))
+        endif
+        if has_key(ml_settings, 'fdc')
+            call setwinvar(win_id2win(winid),
+                \ '&foldcolumn', ml_settings.fdc)
+        endif
+    endif
+    if has_key(ml_settings, 've') && !empty(ml_settings.ve)
+        let &virtualedit = ml_settings.ve
+    endif
 
     echomsg "Cleave: Buffers joined successfully."
 endfunction
