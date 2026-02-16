@@ -1427,6 +1427,10 @@ function! cleave#shift_paragraph(direction)
     let placement = s:build_paragraph_placement(paragraphs, target_starts)
     call s:replace_buffer_lines(target_bufnr, placement.lines)
 
+    let peer_bufnr = current_side ==# 'right' ? left_bufnr : right_bufnr
+    let peer_len = len(getbufline(peer_bufnr, 1, '$'))
+    call s:pad_buffer_lines(target_bufnr, peer_len)
+
     call cleave#set_text_properties()
 
     if para_index < len(placement.positions)
