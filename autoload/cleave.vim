@@ -1505,11 +1505,17 @@ function! cleave#shift_paragraph(direction)
         if blank_line < 1 || trim(target_lines[blank_line - 1]) !=# ''
             return
         endif
+        if blank_line - 1 >= 1 && trim(target_lines[blank_line - 2]) !=# ''
+            return
+        endif
         call deletebufline(target_bufnr, blank_line)
         call appendbufline(target_bufnr, para_end - 1, '')
     else
         let blank_line = para_end + 1
         if blank_line > total_lines || trim(target_lines[blank_line - 1]) !=# ''
+            return
+        endif
+        if blank_line + 1 <= total_lines && trim(target_lines[blank_line]) !=# ''
             return
         endif
         call deletebufline(target_bufnr, blank_line)
