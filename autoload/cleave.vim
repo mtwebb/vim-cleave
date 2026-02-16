@@ -797,7 +797,8 @@ function! cleave#reflow_right_buffer(options, current_bufnr, left_bufnr,
             endif
         endif
 
-        if inside_fence
+        let is_heading = len(para_lines) == 1 && para_lines[0] =~# '^\s*#'
+        if inside_fence || is_heading
             let reflowed_para = para_lines
         else
             let reflowed_para = cleave#wrap_paragraph(para_lines, a:options)
@@ -988,6 +989,16 @@ function! cleave#reflow_text(lines, options)
         endif
 
         if inside_fence
+            call add(reflowed, line)
+            continue
+        endif
+
+        if line =~# '^\s*#'
+            if !empty(current_paragraph)
+                let wrapped = cleave#wrap_paragraph(current_paragraph, options)
+                call extend(reflowed, wrapped)
+                let current_paragraph = []
+            endif
             call add(reflowed, line)
             continue
         endif
