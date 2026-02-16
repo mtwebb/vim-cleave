@@ -1728,7 +1728,7 @@ function! cleave#sync_left_paragraphs()
         return
     endif
 
-    call cleave#place_right_paragraphs_at_lines(left_para_lines, left_lines)
+    call cleave#place_right_paragraphs_at_lines(left_para_lines)
 
     call s:pad_right_to_left(left_bufnr, right_bufnr)
     call cleave#set_text_properties()
