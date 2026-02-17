@@ -1514,7 +1514,7 @@ function! cleave#shift_paragraph(direction)
     let para_len = len(extracted[para_index].content)
     let para_end = para_start + para_len - 1
 
-    if move == -1
+    if move == -1:
         let blank_line = para_start - 1
         if blank_line < 1 || trim(target_lines[blank_line - 1]) !=# ''
             return
