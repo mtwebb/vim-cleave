@@ -674,7 +674,10 @@ function! cleave#join_buffers()
     if left_textwidth > 0
         call setbufvar(original_bufnr, '&textwidth', left_textwidth)
     endif
-    let left_foldcolumn = getbufvar(left_bufnr, '&foldcolumn', 0)
+    let left_fdc_winid = get(win_findbuf(left_bufnr), 0, -1)
+    let left_foldcolumn = left_fdc_winid != -1
+        \ ? getwinvar(win_id2win(left_fdc_winid), '&foldcolumn', 0)
+        \ : getbufvar(left_bufnr, '&foldcolumn', 0)
     call setbufvar(original_bufnr, '&foldcolumn', left_foldcolumn)
 
     let last_col = get(getbufvar(left_bufnr, 'cleave', {}), 'col', -1)
@@ -689,7 +692,10 @@ function! cleave#join_buffers()
     endif
     let ml_settings.cc = cleave_col
     let ml_settings.tw = getbufvar(left_bufnr, '&textwidth', 0)
-    let ml_settings.fdc = getbufvar(left_bufnr, '&foldcolumn', 0)
+    let left_winid = get(win_findbuf(left_bufnr), 0, -1)
+    let ml_settings.fdc = left_winid != -1
+        \ ? getwinvar(win_id2win(left_winid), '&foldcolumn', 0)
+        \ : getbufvar(left_bufnr, '&foldcolumn', 0)
     let ml_settings.wm = g:cleave_gutter
     let ve_val = getbufvar(right_bufnr, '&virtualedit', '')
     let ml_settings.ve = !empty(ve_val) ? ve_val : 'all'
@@ -1514,7 +1520,7 @@ function! cleave#shift_paragraph(direction)
     let para_len = len(extracted[para_index].content)
     let para_end = para_start + para_len - 1
 
-    if move == -1:
+    if move == -1
         let blank_line = para_start - 1
         if blank_line < 1 || trim(target_lines[blank_line - 1]) !=# ''
             return

@@ -4,6 +4,7 @@
 *.swn
 *.swx
 *.swl
+*.sw*
 AGENT.md
 AGENTS.md
 amp.md
