@@ -47,6 +47,18 @@ COMMANDS                                     *cleave-commands*
     This splits the buffer at column 80, useful for working with text that
     has a specific line length or format.
 
+*:CleaveAtColorColumn*
+    Splits the current buffer at the first 'colorcolumn' value. This is
+    a convenience command that reads the buffer's 'colorcolumn' option and
+    uses it as the cleave column.
+
+    Requires 'colorcolumn' to be set to a positive number.
+
+    Example: >
+        :set colorcolumn=80
+        :CleaveAtColorColumn
+<
+
 *:CleaveAgain*                               *cleave-again*
     Re-cleaves the current buffer at the most recently used cleave column for
     this buffer. The column is stored when `:CleaveAtCursor` or
@@ -222,6 +234,15 @@ COMMANDS                                     *cleave-commands*
 <
     This toggles paragraph anchor visibility, making it easy to see where
     paragraph alignment points are located in the left buffer.
+
+                                             *cleave-auto-sync*
+Auto-sync on InsertLeave ~
+
+    When editing a cleaved buffer, paragraph anchors in the left buffer are
+    automatically refreshed on |InsertLeave|. This keeps the text property
+    anchors up to date as you type, so that subsequent |:CleaveAlign| or
+    |:CleaveReflow| commands use the correct paragraph positions without
+    requiring a manual |:CleaveSetProps| call.
 
 ==============================================================================
 OPTIONS                                      *cleave-options*

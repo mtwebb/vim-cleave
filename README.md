@@ -63,6 +63,15 @@ Splits the current buffer at the specified column number.
 :CleaveAtColumn 80
 ```
 
+#### `:CleaveAtColorColumn`
+Splits the current buffer at the first `colorcolumn` value. Requires `colorcolumn` to be set.
+
+**Example:**
+```vim
+:set colorcolumn=80
+:CleaveAtColorColumn
+```
+
 #### `:CleaveUndo`
 Restores the original buffer and closes the cleaved windows. This discards any changes made to the split buffers.
 
@@ -114,6 +123,15 @@ command works even if the current buffer has unsaved changes.
 :CleaveAgain
 ```
 
+#### `:CleaveShiftParagraphUp` / `:CleaveShiftParagraphDown`
+Moves the current paragraph up or down by one line in the active buffer and updates the left-side anchor markers. Movement stops if it would remove the single blank line between paragraphs.
+
+#### `:CleaveSetProps`
+Creates or updates text properties that mark paragraph start positions in the left buffer. Called automatically by other commands; manual use is rarely needed.
+
+#### `:CleaveToggleTextAnchorVis`
+Toggles the visual highlighting of paragraph anchor text properties between visible and invisible states. Useful for debugging paragraph alignment.
+
 ### Options
 
 #### `g:cleave_gutter`
@@ -154,6 +172,21 @@ Minimum word length eligible for hyphenation.
 Justify the final line of each paragraph when enabled.
 
 **Default:** `0`
+
+#### `g:cleave_modeline`
+Controls how vim-cleave interacts with modelines in files. Modelines allow cleave settings to be embedded directly in a file for repeatable sessions.
+
+**Values:**
+- `read` — Read modeline on cleave start but never write it back (default)
+- `update` — Read modeline on cleave start AND write it back on `:CleaveJoin`
+- `ignore` — Skip modeline processing entirely
+
+**Default:** `read`
+
+**Example:**
+```vim
+let g:cleave_modeline = 'update'
+```
 
 ### Keybinding Suggestions
 
