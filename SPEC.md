@@ -157,12 +157,12 @@ Both windows are `scrollbind`-ed so they scroll as a single document. Scrollbind
 
 **Behavior**:
 1. Read text property positions from the left buffer (`cleave_paragraph_start` props).
-2. If no properties exist, create them first via `CleaveSetProps`.
-3. Extract right-buffer paragraphs using **context-aware** detection (left buffer lines are passed so paragraph boundaries visible in the left buffer are respected).
+2. If no properties exist, or there are fewer properties than paragraphs in right buffer, exit with message detailing issue.  
+3. Extract right-buffer paragraphs using **simple** detection (not context-aware, because paragraphs may have been shifted away from their anchors so positional correspondence with the left buffer cannot be assumed).
 4. Place each paragraph at the corresponding text property line number.
 5. If a paragraph would overlap a previous one, slide it down.
-6. Pad right buffer.
-7. Update text properties to reflect final paragraph positions.
+6. Pad right buffer to be same length as left buffer 
+7. Update text properties to reflect final paragraph positions in the case where paragraphs were shifted.
 
 **Left buffer effects**: Text properties updated.
 **Right buffer effects**: Paragraphs repositioned to match left-buffer anchor lines.

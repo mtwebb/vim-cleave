@@ -1443,14 +1443,44 @@ function! cleave#align_right_to_left_paragraphs()
         return
     endif
 
+    let save_winid = win_getid()
+    let save_cursor = getcurpos()
+
+    " Step 1: Read text property positions from the left buffer
     let left_para_lines = cleave#get_left_buffer_paragraph_lines()
     if empty(left_para_lines)
-        echomsg "Cleave: No paragraph positions found in left buffer"
+        echomsg "Cleave: No text properties found in left buffer"
         return
     endif
 
-    let actual_positions = cleave#place_right_paragraphs_at_lines(left_para_lines)
-    echomsg "Cleave: Aligned right buffer paragraphs at lines: " . string(actual_positions)
+    " Step 2: Extract right-buffer paragraphs using simple detection.
+    " Simple detection is correct here because paragraphs may have been
+    " shifted away from their anchors, so positional correspondence with
+    " the left buffer cannot be assumed.
+    let right_lines = getbufline(right_bufnr, 1, '$')
+    let extracted = s:extract_paragraphs(right_lines)
+
+    if len(left_para_lines) < len(extracted)
+        echomsg "Cleave: Fewer text properties (" . len(left_para_lines) .
+            \ ") than right-buffer paragraphs (" . len(extracted) . ")"
+        return
+    endif
+
+    " Step 3-5: Place paragraphs at text property positions (slides down on overlap)
+    let paragraphs = map(copy(extracted), 'v:val.content')
+    let placement = s:build_paragraph_placement(paragraphs, left_para_lines)
+    call s:replace_buffer_lines(right_bufnr, placement.lines)
+
+    " Step 6: Pad right buffer to match left buffer
+    call s:pad_right_to_left(left_bufnr, right_bufnr)
+
+    " Step 7: Update text properties to reflect final positions
+    call cleave#set_text_properties()
+
+    " Restore cursor and syncbind
+    call win_gotoid(save_winid)
+    call setpos('.', save_cursor)
+    syncbind
 endfunction
 
 function! cleave#shift_paragraph(direction)
