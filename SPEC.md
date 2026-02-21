@@ -224,6 +224,18 @@ Both windows are `scrollbind`-ed so they scroll as a single document. Scrollbind
 
 ---
 
+### CleaveDebug
+
+**Purpose**: Print left-buffer text properties and right-buffer paragraph starts for debugging.
+
+**Behavior**:
+1. List all `cleave_paragraph_start` text properties from the left buffer: line number, column, length, and anchor word.
+2. List all right-buffer paragraph starts (simple detection): line number and a preview of the first line (truncated to 50 chars).
+
+**Effects**: None. Output via `echomsg` (viewable with `:messages`).
+
+---
+
 ## Autocmd Behaviors
 
 ### InsertLeave on RIGHT buffer → `cleave#sync_right_paragraphs()`
