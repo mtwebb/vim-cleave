@@ -1754,5 +1754,47 @@ function! cleave#set_text_properties()
     
 endfunction
 
+function! cleave#debug_paragraphs()
+    let [original_bufnr, left_bufnr, right_bufnr] = s:resolve_buffers()
+    if original_bufnr == -1 || left_bufnr == -1 || right_bufnr == -1
+        echoerr "Cleave: Not a cleave buffer or buffers not found."
+        return
+    endif
+
+    let prop_type = 'cleave_paragraph_start'
+    let props = has('textprop')
+        \ ? prop_list(1, {'bufnr': left_bufnr, 'types': [prop_type], 'end_lnum': -1})
+        \ : []
+    let left_lines = getbufline(left_bufnr, 1, '$')
+
+    echomsg "--- Left text properties ---"
+    if empty(props)
+        echomsg "  (none)"
+    else
+        for p in props
+            let word = p.lnum <= len(left_lines)
+                \ ? matchstr(left_lines[p.lnum - 1], '\S\+') : ''
+            echomsg printf("  line %3d  col %2d  len %2d  anchor: %s",
+                \ p.lnum, p.col, p.length, empty(word) ? '(empty)' : word)
+        endfor
+    endif
+
+    let right_lines = getbufline(right_bufnr, 1, '$')
+    let para_starts = s:para_starts(right_lines)
+
+    echomsg "--- Right paragraph starts ---"
+    if empty(para_starts)
+        echomsg "  (none)"
+    else
+        for lnum in para_starts
+            let preview = trim(right_lines[lnum - 1])
+            if len(preview) > 50
+                let preview = preview[:49] . '...'
+            endif
+            echomsg printf("  line %3d: %s", lnum, preview)
+        endfor
+    endif
+endfunction
+
 let &cpo = s:save_cpo
 unlet s:save_cpo
