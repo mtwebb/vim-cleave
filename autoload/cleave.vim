@@ -526,6 +526,11 @@ function! cleave#create_buffers(left_lines, right_lines, original_name, original
         execute 'autocmd! InsertLeave <buffer=' . left_bufnr . '> call cleave#sync_left_paragraphs()'
     augroup END
 
+    " Detect paragraph deletions in normal mode
+    augroup CleaveTextChanged
+        execute 'autocmd! TextChanged <buffer=' . right_bufnr . '> call cleave#on_right_text_changed()'
+    augroup END
+
     return [left_bufnr, right_bufnr]
 endfunction
 
@@ -1751,7 +1756,48 @@ function! cleave#set_text_properties()
             endif
         endif
     endfor
+
+    " Store paragraph count on right buffer for TextChanged detection
+    call setbufvar(right_bufnr, 'cleave_para_count', len(right_para_starts))
     
+endfunction
+
+function! cleave#on_right_text_changed()
+    let [original_bufnr, left_bufnr, right_bufnr] = s:resolve_buffers()
+    if original_bufnr == -1 || left_bufnr == -1 || right_bufnr == -1
+        return
+    endif
+
+    let right_lines = getbufline(right_bufnr, 1, '$')
+    let current_count = len(s:para_starts(right_lines))
+    let stored_count = getbufvar(right_bufnr, 'cleave_para_count', current_count)
+
+    if current_count >= stored_count
+        call setbufvar(right_bufnr, 'cleave_para_count', current_count)
+        return
+    endif
+
+    " Paragraph count decreased — remove orphaned text properties
+    let prop_type = 'cleave_paragraph_start'
+    let props = has('textprop')
+        \ ? prop_list(1, {'bufnr': left_bufnr, 'types': [prop_type], 'end_lnum': -1})
+        \ : []
+    let para_starts = s:para_starts(right_lines)
+    let prop_count = len(props)
+
+    for p in props
+        if prop_count <= current_count
+            break
+        endif
+        if index(para_starts, p.lnum) == -1
+            call prop_remove({'type': prop_type, 'bufnr': left_bufnr,
+                \ 'id': 0}, p.lnum, p.lnum)
+            let prop_count -= 1
+        endif
+    endfor
+
+    call setbufvar(right_bufnr, 'cleave_para_count', current_count)
+    call cleave#align_right_to_left_paragraphs()
 endfunction
 
 function! cleave#debug_paragraphs()

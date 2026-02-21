@@ -248,6 +248,21 @@ Both windows are `scrollbind`-ed so they scroll as a single document. Scrollbind
 
 **Cursor**: Restored. `syncbind` called.
 
+### TextChanged on RIGHT buffer → `cleave#on_right_text_changed()`
+
+**Purpose**: Detect paragraph deletions in the right buffer and remove orphaned text properties from the left buffer.
+
+**Behavior**:
+1. Count current right-buffer paragraphs (simple detection).
+2. Compare with stored paragraph count (`b:cleave_para_count`).
+3a. start checking each text prop from the top
+3b. if there is a paragraph start in right buffer on the text property line, leave that text property
+3c. if there is not paragrah start in right buffer on the text property line AND there are more text properties than right buffer paragraphs, remove that text property and update number of text property count
+3d. Once Text property count matches right buffer count, can stop checking text properties
+3e. Call CleaveAlign 
+4. Update stored count to current value.
+
+
 ### BufWinEnter on either buffer
 
 **Purpose**: Re-enforce `scrollbind` in case it was lost.
