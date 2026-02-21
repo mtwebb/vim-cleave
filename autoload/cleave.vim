@@ -39,40 +39,11 @@ function! s:is_para_start(lines, idx)
     return a:idx == 0 || trim(a:lines[a:idx - 1]) ==# ''
 endfunction
 
-" Paragraph start with left-buffer context: also triggers when the
-" corresponding left-buffer line is empty/whitespace
-function! s:is_para_start_ctx(lines, left_lines, idx)
-    if trim(a:lines[a:idx]) ==# ''
-        return v:false
-    endif
-    if a:idx == 0
-        return v:true
-    endif
-    if trim(a:lines[a:idx - 1]) ==# ''
-        return v:true
-    endif
-    if a:idx - 1 < len(a:left_lines)
-        return trim(a:left_lines[a:idx - 1]) ==# ''
-    endif
-    return v:true
-endfunction
-
 " Return 1-based line numbers of paragraph starts in lines (simple detection)
 function! s:para_starts(lines)
     let result = []
     for i in range(len(a:lines))
         if s:is_para_start(a:lines, i)
-            call add(result, i + 1)
-        endif
-    endfor
-    return result
-endfunction
-
-" Return 1-based line numbers of paragraph starts using left-context detection
-function! s:para_starts_ctx(lines, left_lines)
-    let result = []
-    for i in range(len(a:lines))
-        if s:is_para_start_ctx(a:lines, a:left_lines, i)
             call add(result, i + 1)
         endif
     endfor
@@ -89,32 +60,6 @@ function! s:extract_paragraphs(lines)
     for i in range(len(a:lines))
         let trimmed = trim(a:lines[i])
         if s:is_para_start(a:lines, i)
-            if current_start >= 0 && !empty(current_para)
-                call add(paragraphs, {'start': current_start + 1, 'content': copy(current_para)})
-            endif
-            let current_para = [a:lines[i]]
-            let current_start = i
-        elseif current_start >= 0 && trimmed !=# ''
-            call add(current_para, a:lines[i])
-        endif
-    endfor
-
-    if current_start >= 0 && !empty(current_para)
-        call add(paragraphs, {'start': current_start + 1, 'content': copy(current_para)})
-    endif
-    return paragraphs
-endfunction
-
-" Extract paragraphs using left-context detection, preserving original lines
-" (not trimmed). Returns list of {start: N, content: [lines]}
-function! s:extract_paragraphs_ctx(lines, left_lines)
-    let paragraphs = []
-    let current_para = []
-    let current_start = -1
-
-    for i in range(len(a:lines))
-        let trimmed = trim(a:lines[i])
-        if s:is_para_start_ctx(a:lines, a:left_lines, i)
             if current_start >= 0 && !empty(current_para)
                 call add(paragraphs, {'start': current_start + 1, 'content': copy(current_para)})
             endif
@@ -1051,7 +996,7 @@ function! cleave#reflow_left_buffer(options, current_bufnr, left_bufnr,
     \ right_bufnr)
     let right_lines = getbufline(a:right_bufnr, 1, '$')
     let left_lines = getbufline(a:left_bufnr, 1, '$')
-    let right_para_starts = s:para_starts_ctx(right_lines, left_lines)
+    let right_para_starts = s:para_starts(right_lines)
 
     let anchors = s:capture_paragraph_anchors(left_lines, right_para_starts)
 
@@ -1397,7 +1342,7 @@ function! cleave#toggle_paragraph_highlight()
     echomsg "Cleave: Paragraph highlight changed to " . new_group
 endfunction
 
-function! cleave#place_right_paragraphs_at_lines(target_line_numbers, ...)
+function! cleave#place_right_paragraphs_at_lines(target_line_numbers)
     " Places paragraphs from the right buffer at specified line numbers
     " If a paragraph would overlap with a previously placed paragraph,
     " slides it down to maintain one blank line separation
@@ -1416,11 +1361,7 @@ function! cleave#place_right_paragraphs_at_lines(target_line_numbers, ...)
     endif
     
     let current_lines = getbufline(right_bufnr, 1, '$')
-    if a:0 > 0 && !empty(a:1)
-        let extracted = s:extract_paragraphs_ctx(current_lines, a:1)
-    else
-        let extracted = s:extract_paragraphs(current_lines)
-    endif
+    let extracted = s:extract_paragraphs(current_lines)
     let paragraphs = map(copy(extracted), 'v:val.content')
     let paragraph_starts = map(copy(extracted), 'v:val.start')
 
@@ -1727,40 +1668,6 @@ function! cleave#sync_right_paragraphs()
         return
     endif
 
-    let right_lines = getbufline(right_bufnr, 1, '$')
-    let left_lines = getbufline(left_bufnr, 1, '$')
-
-    " Find paragraph starts that context-aware detection sees but simple
-    " detection misses — these need a blank separator line inserted before
-    " them so that simple s:extract_paragraphs agrees with context-aware.
-    let ctx_starts = s:para_starts_ctx(right_lines, left_lines)
-    let simple_starts = s:para_starts(right_lines)
-
-    let missing = []
-    for s in ctx_starts
-        if index(simple_starts, s) == -1
-            call add(missing, s)
-        endif
-    endfor
-
-    if !empty(missing)
-        " Insert blank lines in reverse order to preserve line numbers
-        let save_cursor = getcurpos()
-        for i in range(len(missing) - 1, 0, -1)
-            let lnum = missing[i]
-            call appendbufline(right_bufnr, lnum - 1, '')
-        endfor
-        call setpos('.', save_cursor)
-    endif
-
-    let right_lines = getbufline(right_bufnr, 1, '$')
-    let left_lines = getbufline(left_bufnr, 1, '$')
-    let target_positions = s:locate_anchors_after_reflow(
-        \ left_lines, s:capture_paragraph_anchors(left_lines, ctx_starts))
-    if !empty(target_positions)
-        call cleave#place_right_paragraphs_at_lines(target_positions, left_lines)
-    endif
-
     call s:pad_right_to_left(left_bufnr, right_bufnr)
     call cleave#set_text_properties()
 endfunction
@@ -1811,7 +1718,7 @@ function! cleave#set_text_properties()
     
     let right_lines = getbufline(right_bufnr, 1, '$')
     let left_lines = getbufline(left_bufnr, 1, '$')
-    let right_para_starts = s:para_starts_ctx(right_lines, left_lines)
+    let right_para_starts = s:para_starts(right_lines)
 
     let properties_added = 0
     for line_num in right_para_starts

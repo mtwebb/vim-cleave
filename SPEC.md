@@ -12,8 +12,7 @@
 
 A **paragraph** is a contiguous block of non-empty lines.
 
-- **Simple detection**: A paragraph starts at a non-empty line that is either line 1 or follows an empty line. Used within a single buffer.
-- **Context-aware detection**: Like simple detection, but also starts a new paragraph when the corresponding line in the left buffer is empty. Used for right-buffer paragraphs so that paragraph boundaries in the left buffer are respected even when the right buffer has no blank line there.
+- **Simple detection**: A paragraph starts at a non-empty line that is either line 1 or follows an empty line. Used for all paragraph detection in both buffers.
 
 ### Text Anchors (Text Properties)
 
@@ -119,7 +118,7 @@ Both windows are `scrollbind`-ed so they scroll as a single document. Scrollbind
 #### When run from the LEFT buffer:
 
 **Behavior**:
-1. Detect right-buffer paragraph starts (context-aware detection).
+1. Detect right-buffer paragraph starts (simple detection).
 2. Capture anchor words: for each right-buffer paragraph start position, find the first word of the corresponding left-buffer line. These anchor words identify which left-buffer paragraph each right-buffer paragraph is associated with.
 3. Reflow left buffer text to new width (wrap paragraphs, preserve headings and fenced code blocks).
 4. Replace left buffer content.
@@ -158,7 +157,7 @@ Both windows are `scrollbind`-ed so they scroll as a single document. Scrollbind
 **Behavior**:
 1. Read text property positions from the left buffer (`cleave_paragraph_start` props).
 2. If no properties exist, or there are fewer properties than paragraphs in right buffer, exit with message detailing issue.  
-3. Extract right-buffer paragraphs using **simple** detection (not context-aware, because paragraphs may have been shifted away from their anchors so positional correspondence with the left buffer cannot be assumed).
+3. Extract right-buffer paragraphs using simple detection.
 4. Place each paragraph at the corresponding text property line number.
 5. If a paragraph would overlap a previous one, slide it down.
 6. Pad right buffer to be same length as left buffer 
@@ -194,7 +193,7 @@ Both windows are `scrollbind`-ed so they scroll as a single document. Scrollbind
 **Purpose**: Create/update text properties marking right-buffer paragraph anchors in the left buffer.
 
 **Behavior**:
-1. Detect right-buffer paragraph starts (context-aware detection).
+1. Detect right-buffer paragraph starts (simple detection).
 2. Clear all existing `cleave_paragraph_start` properties from the left buffer.
 3. For each paragraph start line: if the corresponding left-buffer line has text, add a text property on its first word. If the left-buffer line is empty, add a zero-length property.
 
@@ -229,15 +228,11 @@ Both windows are `scrollbind`-ed so they scroll as a single document. Scrollbind
 
 ### InsertLeave on RIGHT buffer → `cleave#sync_right_paragraphs()`
 
-**Purpose**: Ensure paragraph separators are correct after the user edits the right buffer.
+**Purpose**: Update padding and text properties after the user edits the right buffer.
 
 **Behavior**:
-1. Detect paragraph starts via context-aware detection.
-2. Compare with simple detection. Where context-aware finds a paragraph start that simple detection misses, insert a blank separator line.
-3. Pad right buffer.
-4. Update text properties.
-
-**What this does NOT do**: It does NOT reposition paragraphs. The user's paragraph positions are respected. It only adds missing blank separators so paragraph detection stays consistent.
+1. Pad right buffer to match left buffer length.
+2. Update text properties.
 
 **Cursor**: Restored. `syncbind` called.
 
