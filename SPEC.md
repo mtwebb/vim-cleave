@@ -46,7 +46,7 @@ Both windows are `scrollbind`-ed so they scroll as a single document. Scrollbind
 3. Split each line of the original buffer at the cleave column into left and right parts.
 4. Create left buffer: set `buftype=nofile`, copy `foldcolumn` from original, set `textwidth` to longest line.
 5. Create right buffer: set `buftype=nofile`, `filetype=right`, `foldcolumn=0`, set `textwidth` to longest line.
-6. Pad right buffer to match left buffer line count.
+6. Equalize buffer lengths (pad shorter buffer).
 7. Register `InsertLeave` autocmds for both buffers.
 8. Register `BufWinEnter` autocmds to re-enforce `scrollbind`.
 9. Create vertical split: left buffer on left, right buffer on right.
@@ -127,7 +127,7 @@ Both windows are `scrollbind`-ed so they scroll as a single document. Scrollbind
 7. Update cleave column: `new_width + g:cleave_gutter + 1`.
 8. Resize left window to new width.
 9. Set left buffer `textwidth`.
-10. Pad right buffer.
+10. Equalize buffer lengths.
 11. Update text properties.
 
 **Left buffer effects**: Content reflowed to new width. Window resized.
@@ -141,7 +141,7 @@ Both windows are `scrollbind`-ed so they scroll as a single document. Scrollbind
 2. Reflow each paragraph to new width (preserve headings and fenced code blocks).
 3. Reconstruct buffer: place each reflowed paragraph at its original start position if it fits; if it would overlap the next paragraph, slide it down with a blank separator.
 4. Replace right buffer content.
-5. Pad right buffer to match left buffer.
+5. Equalize buffer lengths.
 6. Set right buffer `textwidth`.
 
 **Left buffer effects**: NONE. No changes to left buffer content, window size, text properties, or anchors.
@@ -160,7 +160,7 @@ Both windows are `scrollbind`-ed so they scroll as a single document. Scrollbind
 3. Extract right-buffer paragraphs using simple detection.
 4. Place each paragraph at the corresponding text property line number.
 5. If a paragraph would overlap a previous one, slide it down.
-6. Pad right buffer to be same length as left buffer 
+6. Equalize buffer lengths.
 7. Update text properties to reflect final paragraph positions in the case where paragraphs were shifted.
 
 **Left buffer effects**: Text properties updated.
@@ -270,7 +270,7 @@ For interleave. truncate right buffer line if it does not fit (use elipsis to in
 **Purpose**: Update padding and text properties after the user edits the right buffer.
 
 **Behavior**:
-1. Pad right buffer to match left buffer length.
+1. Equalize buffer lengths.
 2. Update text properties.
 
 **Cursor**: Restored. `syncbind` called.
@@ -282,7 +282,7 @@ For interleave. truncate right buffer line if it does not fit (use elipsis to in
 **Behavior**:
 1. Read text property positions from the left buffer.
 2. Place right-buffer paragraphs at those positions.
-3. Pad right buffer.
+3. Equalize buffer lengths.
 4. Update text properties.
 
 **Cursor**: Restored. `syncbind` called.
@@ -321,9 +321,9 @@ Executes `Fn` in the context of `bufnr` for proper undo history. If the buffer i
 
 Replaces all buffer content. Removes excess trailing lines. Used via `s:in_buf_context` for proper undo.
 
-### `s:pad_right_to_left(left_bufnr, right_bufnr)`
+### `s:equalize_buffer_lengths(left_bufnr, right_bufnr)`
 
-Ensures right buffer has at least as many lines as left buffer by appending empty lines.
+Compares the line counts of both buffers and pads the shorter one with blank lines so they are the same length. Saves and restores cursor position.
 
 ### `s:build_paragraph_placement(paragraphs, target_line_numbers)`
 

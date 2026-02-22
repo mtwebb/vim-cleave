@@ -144,7 +144,7 @@ COMMANDS                                     *cleave-commands*
     - Validates that there are enough properties for the paragraphs
     - Extracts right-buffer paragraphs using simple detection
     - Handles paragraph overlap conflicts by sliding paragraphs down
-    - Pads right buffer to match left buffer length
+    - Equalizes buffer lengths (pads shorter buffer)
     - Updates text properties to reflect final positions
     - Restores cursor position and calls `syncbind`
 
@@ -154,7 +154,7 @@ COMMANDS                                     *cleave-commands*
     3. Extracts right-buffer paragraphs (simple detection)
     4. Places each paragraph at its corresponding text property line
     5. Slides overlapping paragraphs down with blank separators
-    6. Pads right buffer and updates text properties
+    6. Equalizes buffer lengths and updates text properties
 
     Example: >
         :CleaveAlign
@@ -259,8 +259,8 @@ Auto-sync behaviors ~
 
     When editing a cleaved buffer, several autocmds keep state in sync:
 
-    |InsertLeave| on RIGHT buffer: Pads right buffer to match left buffer
-    length and updates text properties.
+    |InsertLeave| on RIGHT buffer: Equalizes buffer lengths (pads whichever
+    buffer is shorter) and updates text properties.
 
     |InsertLeave| on LEFT buffer: Reads text property positions from the
     left buffer and repositions right-buffer paragraphs to match, then

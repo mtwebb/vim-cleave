@@ -134,13 +134,22 @@ function! s:pad_buffer_lines(bufnr, target_len)
     call setbufline(a:bufnr, current_len + 1, padding)
 endfunction
 
-function! s:pad_right_to_left(left_bufnr, right_bufnr)
+function! s:equalize_buffer_lengths(left_bufnr, right_bufnr)
     if a:left_bufnr == -1 || a:right_bufnr == -1
         return
     endif
 
+    let save_pos = getpos('.')
     let left_len = len(getbufline(a:left_bufnr, 1, '$'))
-    call s:pad_buffer_lines(a:right_bufnr, left_len)
+    let right_len = len(getbufline(a:right_bufnr, 1, '$'))
+
+    if left_len < right_len
+        call s:pad_buffer_lines(a:left_bufnr, right_len)
+    elseif right_len < left_len
+        call s:pad_buffer_lines(a:right_bufnr, left_len)
+    endif
+
+    call setpos('.', save_pos)
 endfunction
 
 " Shared teardown for undo_cleave and join_buffers: close windows, delete
@@ -911,7 +920,7 @@ function! cleave#reflow_right_buffer(options, current_bufnr, left_bufnr,
     
     " Step 4: Update the right buffer
     call s:replace_buffer_lines(bufnr('%'), new_buffer_lines)
-    call s:pad_right_to_left(a:left_bufnr, a:right_bufnr)
+    call s:equalize_buffer_lengths(a:left_bufnr, a:right_bufnr)
     execute 'setlocal textwidth=' . width
 endfunction
 
@@ -1013,7 +1022,7 @@ function! cleave#reflow_left_buffer(options, current_bufnr, left_bufnr,
 
     call s:apply_post_reflow_ui(a:options.width, a:current_bufnr,
         \ a:right_bufnr, right_lines, updated_para_starts)
-    call s:pad_right_to_left(a:left_bufnr, a:right_bufnr)
+    call s:equalize_buffer_lengths(a:left_bufnr, a:right_bufnr)
 endfunction
 
 function! cleave#reflow_text(lines, options)
@@ -1419,7 +1428,7 @@ function! cleave#align_right_to_left_paragraphs()
     call s:replace_buffer_lines(right_bufnr, placement.lines)
 
     " Step 6: Pad right buffer to match left buffer
-    call s:pad_right_to_left(left_bufnr, right_bufnr)
+    call s:equalize_buffer_lengths(left_bufnr, right_bufnr)
 
     " Step 7: Update text properties to reflect final positions
     call cleave#set_text_properties()
@@ -1674,7 +1683,7 @@ function! cleave#sync_right_paragraphs()
         return
     endif
 
-    call s:pad_right_to_left(left_bufnr, right_bufnr)
+    call s:equalize_buffer_lengths(left_bufnr, right_bufnr)
     call cleave#set_text_properties()
 endfunction
 
@@ -1693,7 +1702,7 @@ function! cleave#sync_left_paragraphs()
 
     call cleave#place_right_paragraphs_at_lines(left_para_lines)
 
-    call s:pad_right_to_left(left_bufnr, right_bufnr)
+    call s:equalize_buffer_lengths(left_bufnr, right_bufnr)
     call cleave#set_text_properties()
 endfunction
 
