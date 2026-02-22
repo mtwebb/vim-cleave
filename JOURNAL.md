@@ -1,5 +1,46 @@
 # Development Journal
 
+## 2026-02-22: Unified TextChanged handler for both buffers
+
+### Problem
+
+The `TextChanged` autocmd only fired on the right buffer. Normal-mode
+edits in the left buffer (e.g., `dd`, `u`, `p`) could delete or shift
+text properties with no handler to reconcile them, leaving right-buffer
+paragraphs misaligned. A secondary issue: `set_text_properties()` silently
+skipped props when right paragraphs extended beyond the left buffer's
+line count, causing prop/paragraph count mismatches.
+
+### Changes
+
+**Unify TextChanged handler** (`2598ec7`)
+- Replaced `cleave#on_right_text_changed()` with `cleave#on_text_changed()`
+- Registered `TextChanged` autocmd on both left and right buffers
+- New reconciliation logic: builds an interleaved set of text property
+  lines and right paragraph start lines, walks from top to remove
+  orphaned props or add missing ones until counts match, then calls
+  `CleaveAlign`
+- Stores `b:cleave_prop_count` on the left buffer for change detection
+- Updated SPEC.md: merged left/right `TextChanged` sections into one
+  unified spec
+
+**Fix set_text_properties left-buffer padding** (`dd38eeb`)
+- `set_text_properties()` now pads the left buffer with empty lines when
+  right paragraphs extend beyond it, ensuring props can always be placed
+- `on_text_changed()` clamps target line to left buffer length when
+  adding missing props for paragraphs beyond the left buffer
+- Updated `doc/cleave.txt` auto-sync section for the unified handler
+
+### Tests updated
+
+- Updated `TestTextChangedParaDeletion` and `TestTextChangedNoChange` to
+  call `cleave#on_text_changed()` instead of `cleave#on_right_text_changed()`
+- Added `TestTextChangedLeftPropDeleted`: deletes a left-buffer paragraph,
+  verifies the handler adds a new prop for the orphaned right paragraph
+  and maintains all 3 right-buffer paragraphs
+
+---
+
 ## 2026-02-21: CleaveAlign refactor and text property maintenance
 
 ### Problem
