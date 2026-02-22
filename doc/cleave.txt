@@ -135,30 +135,32 @@ COMMANDS                                     *cleave-commands*
     Toggles the active buffer's reflow mode between `ragged` and `justify`.
 
 *:CleaveAlign*                               *cleave-align*
-    Aligns right buffer paragraphs to match left buffer paragraph positions.
+    Aligns right buffer paragraphs to match left buffer anchor positions.
     This command is useful when paragraph alignment has been disrupted and
     needs to be restored.
 
     Key features:
-    - Uses text properties to identify paragraph positions in the left buffer
-    - Automatically creates text properties if they don't exist
+    - Reads text property positions from the left buffer
+    - Validates that there are enough properties for the paragraphs
+    - Extracts right-buffer paragraphs using simple detection
     - Handles paragraph overlap conflicts by sliding paragraphs down
-    - Maintains proper spacing between paragraphs
-    - Provides feedback on actual paragraph placement
+    - Pads right buffer to match left buffer length
+    - Updates text properties to reflect final positions
+    - Restores cursor position and calls `syncbind`
 
     The command performs the following steps:
-    1. Retrieves paragraph start positions from left buffer text properties
-    2. Extracts all paragraphs from the right buffer
-    3. Attempts to place each paragraph at its corresponding left buffer position
-    4. Resolves conflicts by sliding overlapping paragraphs down
-    5. Ensures at least one blank line between paragraphs
-    6. Reports the actual positions where paragraphs were placed
+    1. Reads `cleave_paragraph_start` text property positions from the left buffer
+    2. If fewer properties than paragraphs, exits with a message
+    3. Extracts right-buffer paragraphs (simple detection)
+    4. Places each paragraph at its corresponding text property line
+    5. Slides overlapping paragraphs down with blank separators
+    6. Pads right buffer and updates text properties
 
     Example: >
         :CleaveAlign
 <
     This realigns the right buffer paragraphs to match the text property
-    anchors placed thoughout the left buffer.
+    anchors in the left buffer.
 
 *:CleaveShiftParagraphUp*                    *cleave-shift-up*
     Moves the current paragraph up by one line in the active buffer and updates
@@ -235,14 +237,43 @@ COMMANDS                                     *cleave-commands*
     This toggles paragraph anchor visibility, making it easy to see where
     paragraph alignment points are located in the left buffer.
 
-                                             *cleave-auto-sync*
-Auto-sync on InsertLeave ~
+*:CleaveDebug* [mode]                        *cleave-debug*
+    Prints left-buffer text properties and right-buffer paragraph starts
+    for debugging alignment issues. Output is via |echomsg| and can be
+    reviewed with |:messages|.
 
-    When editing a cleaved buffer, paragraph anchors in the left buffer are
-    automatically refreshed on |InsertLeave|. This keeps the text property
-    anchors up to date as you type, so that subsequent |:CleaveAlign| or
-    |:CleaveReflow| commands use the correct paragraph positions without
-    requiring a manual |:CleaveSetProps| call.
+    Modes:
+    - `interleaved` (default) — Merges both lists by line number into a
+      side-by-side display showing which lines have properties, paragraph
+      starts, or both.
+    - `sequential` — Shows text properties first, then paragraph starts
+      as two separate lists.
+
+    Example: >
+        :CleaveDebug
+        :CleaveDebug sequential
+<
+
+                                             *cleave-auto-sync*
+Auto-sync behaviors ~
+
+    When editing a cleaved buffer, several autocmds keep state in sync:
+
+    |InsertLeave| on RIGHT buffer: Pads right buffer to match left buffer
+    length and updates text properties.
+
+    |InsertLeave| on LEFT buffer: Reads text property positions from the
+    left buffer and repositions right-buffer paragraphs to match, then
+    pads and updates text properties.
+
+    |TextChanged| on RIGHT buffer: Detects paragraph deletions in
+    normal mode. When the paragraph count decreases, orphaned text
+    properties are removed from the left buffer and |:CleaveAlign| is
+    called to reposition remaining paragraphs.
+
+    These autocmds keep the text property anchors up to date so that
+    subsequent |:CleaveAlign| or |:CleaveReflow| commands use the correct
+    paragraph positions without requiring a manual |:CleaveSetProps| call.
 
 ==============================================================================
 OPTIONS                                      *cleave-options*

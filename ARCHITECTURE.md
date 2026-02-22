@@ -118,6 +118,7 @@ sequenceDiagram
 | `:CleaveAlign` | Calls `cleave#align_right_to_left_paragraphs()`. |
 | `:CleaveToggleTextAnchorVis` | Calls `cleave#toggle_paragraph_highlight()`. |
 | `:CleaveShiftParagraphUp/Down` | Calls `cleave#shift_paragraph()`. |
+| `:CleaveDebug` | Calls `cleave#debug_paragraphs()`. |
 
 ### `autoload/cleave/modeline.vim`
 
@@ -157,17 +158,10 @@ sequenceDiagram
 | --- | --- |
 | `s:is_para_start(lines, idx)` | Returns true when a line is non-empty and is
   either the first line or preceded by a blank line. |
-| `s:is_para_start_ctx(lines, left_lines, idx)` | Like `s:is_para_start()` but
-  also treats a paragraph boundary when the corresponding left buffer line is
-  blank. |
 | `s:para_starts(lines)` | Returns 1-based line numbers of paragraph starts
   using `s:is_para_start()`. |
-| `s:para_starts_ctx(lines, left_lines)` | Returns 1-based line numbers of
-  paragraph starts using left-buffer context. |
 | `s:extract_paragraphs(lines)` | Returns paragraphs as a list of
   `{start, content}` using simple blank-line boundaries. |
-| `s:extract_paragraphs_ctx(lines, left_lines)` | Returns paragraphs using
-  context-aware paragraph boundaries. |
 | `s:build_paragraph_placement(paragraphs, target_line_numbers)` | Builds a
   new buffer by placing paragraphs at target lines, inserting blank lines
   and tracking actual placement when overlaps occur. |
@@ -306,22 +300,28 @@ sequenceDiagram
 | --- | --- |
 | `cleave#toggle_paragraph_highlight()` | Toggles the highlight group for
   paragraph anchor text properties and forces a redraw. |
-| `cleave#place_right_paragraphs_at_lines(target_lines, [left_lines])` |
+| `cleave#place_right_paragraphs_at_lines(target_lines)` |
   Rebuilds right buffer by placing paragraphs at target lines, sliding down
-  to avoid overlap. |
-| `cleave#align_right_to_left_paragraphs()` | Aligns right buffer paragraphs
-  to left buffer anchor positions. |
+  to avoid overlap. Uses simple paragraph detection. |
+| `cleave#align_right_to_left_paragraphs()` | Reads text property positions,
+  extracts right paragraphs (simple detection), places at anchors, pads,
+  updates props, restores cursor, calls `syncbind`. |
 | `cleave#shift_paragraph(direction)` | Moves the current paragraph up or
   down by one blank line, enforcing single-line paragraph spacing. |
 | `cleave#restore_paragraph_alignment(right_bufnr, original_lines, starts)` |
   Rebuilds right buffer so paragraphs start at saved positions. |
-| `cleave#sync_right_paragraphs()` | On InsertLeave in right buffer, inserts
-  missing blank lines, repositions paragraphs, pads buffer, and refreshes
-  text properties. |
+| `cleave#sync_right_paragraphs()` | On InsertLeave in right buffer, pads
+  buffer and refreshes text properties. |
 | `cleave#sync_left_paragraphs()` | On InsertLeave in left buffer, aligns right
   paragraphs to left anchors and refreshes properties. |
+| `cleave#on_right_text_changed()` | On TextChanged in right buffer, detects
+  paragraph deletions by comparing count with stored `b:cleave_para_count`.
+  Removes orphaned text properties and calls `CleaveAlign`. |
 | `cleave#set_text_properties()` | Adds `cleave_paragraph_start` properties to
-  left buffer lines that correspond to paragraph starts in the right buffer. |
+  left buffer lines that correspond to paragraph starts in the right buffer.
+  Stores paragraph count in `b:cleave_para_count`. |
+| `cleave#debug_paragraphs([mode])` | Prints text properties and paragraph
+  starts in interleaved or sequential format. |
 
 ### `ftplugin/left.vim`
 

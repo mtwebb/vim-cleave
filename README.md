@@ -99,14 +99,14 @@ Optional mode values: `ragged` (default) or `justify`.
 Toggles the active buffer's reflow mode between `ragged` and `justify`.
 
 #### `:CleaveAlign`
-Aligns right buffer paragraphs to match left buffer paragraph positions. This command is useful when paragraph alignment has been disrupted and needs to be restored.
+Repositions right-buffer paragraphs to match left-buffer text property anchors. Useful when paragraph alignment has been disrupted.
 
 **Key features:**
-- Uses text properties to identify paragraph positions in the left buffer
-- Automatically creates text properties if they don't exist
-- Handles paragraph overlap conflicts by sliding paragraphs down
-- Maintains proper spacing between paragraphs
-- Provides feedback on actual paragraph placement
+- Reads text property positions from the left buffer
+- Validates property count matches paragraph count
+- Extracts right-buffer paragraphs using simple detection
+- Slides overlapping paragraphs down with blank separators
+- Pads right buffer, updates text properties, restores cursor, calls `syncbind`
 
 **Example:**
 ```vim
@@ -131,6 +131,12 @@ Creates or updates text properties that mark paragraph start positions in the le
 
 #### `:CleaveToggleTextAnchorVis`
 Toggles the visual highlighting of paragraph anchor text properties between visible and invisible states. Useful for debugging paragraph alignment.
+
+#### `:CleaveDebug [mode]`
+Prints left-buffer text properties and right-buffer paragraph starts for debugging. Output via `:messages`.
+
+- `:CleaveDebug` — interleaved side-by-side view (default)
+- `:CleaveDebug sequential` — two separate lists
 
 ### Options
 

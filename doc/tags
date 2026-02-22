@@ -1,6 +1,7 @@
 :CleaveAgain	cleave.txt	/*:CleaveAgain*
 :CleaveAlign	cleave.txt	/*:CleaveAlign*
 :CleaveAtCursor	cleave.txt	/*:CleaveAtCursor*
+:CleaveDebug	cleave.txt	/*:CleaveDebug*
 :CleaveJoin	cleave.txt	/*:CleaveJoin*
 :CleaveJustifyToggle	cleave.txt	/*:CleaveJustifyToggle*
 :CleaveSetProps	cleave.txt	/*:CleaveSetProps*
@@ -11,7 +12,9 @@
 cleave-again	cleave.txt	/*cleave-again*
 cleave-align	cleave.txt	/*cleave-align*
 cleave-commands	cleave.txt	/*cleave-commands*
+cleave-auto-sync	cleave.txt	/*cleave-auto-sync*
 cleave-contents	cleave.txt	/*cleave-contents*
+cleave-debug	cleave.txt	/*cleave-debug*
 cleave-examples	cleave.txt	/*cleave-examples*
 cleave-introduction	cleave.txt	/*cleave-introduction*
 cleave-options	cleave.txt	/*cleave-options*
