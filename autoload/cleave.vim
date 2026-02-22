@@ -1726,35 +1726,42 @@ function! cleave#set_text_properties()
     let left_lines = getbufline(left_bufnr, 1, '$')
     let right_para_starts = s:para_starts(right_lines)
 
+    " Pad left buffer if right paragraphs extend beyond it
+    if !empty(right_para_starts)
+        let max_para_line = right_para_starts[-1]
+        if max_para_line > len(left_lines)
+            call s:pad_buffer_lines(left_bufnr, max_para_line)
+            let left_lines = getbufline(left_bufnr, 1, '$')
+        endif
+    endif
+
     let properties_added = 0
     for line_num in right_para_starts
-        if line_num <= len(left_lines)
-            let left_line = left_lines[line_num - 1]  " Convert to 0-based for array access
-            if trim(left_line) != ''
-                " Add text property to the first word of the line
-                let match_data = matchstrpos(left_line, '\S\+')
-                if match_data[1] >= 0
-                    let first_word = match_data[0]
-                    let start_col = match_data[1] + 1
-                    let length = match_data[2] - match_data[1]
-                    if !empty(first_word) && length > 0
-                        call prop_add(line_num, start_col, {
-                            \ 'type': prop_type,
-                            \ 'length': length,
-                            \ 'bufnr': left_bufnr
-                            \ })
-                        let properties_added += 1
-                    endif
+        let left_line = left_lines[line_num - 1]
+        if trim(left_line) != ''
+            " Add text property to the first word of the line
+            let match_data = matchstrpos(left_line, '\S\+')
+            if match_data[1] >= 0
+                let first_word = match_data[0]
+                let start_col = match_data[1] + 1
+                let length = match_data[2] - match_data[1]
+                if !empty(first_word) && length > 0
+                    call prop_add(line_num, start_col, {
+                        \ 'type': prop_type,
+                        \ 'length': length,
+                        \ 'bufnr': left_bufnr
+                        \ })
+                    let properties_added += 1
                 endif
-            else
-                " Line is empty, add text property to first column
-                call prop_add(line_num, 1, {
-                    \ 'type': prop_type,
-                    \ 'length': 0,
-                    \ 'bufnr': left_bufnr
-                    \ })
-                let properties_added += 1
             endif
+        else
+            " Line is empty, add text property to first column
+            call prop_add(line_num, 1, {
+                \ 'type': prop_type,
+                \ 'length': 0,
+                \ 'bufnr': left_bufnr
+                \ })
+            let properties_added += 1
         endif
     endfor
 
@@ -1818,19 +1825,20 @@ function! cleave#on_text_changed()
         elseif !has_prop && has_para && prop_count < para_count
             " Right paragraph without a text property — add one
             let left_lines = getbufline(left_bufnr, 1, '$')
-            if lnum <= len(left_lines)
-                let left_line = left_lines[lnum - 1]
+            let target_lnum = min([lnum, len(left_lines)])
+            if target_lnum >= 1
+                let left_line = left_lines[target_lnum - 1]
                 if trim(left_line) != ''
                     let match_data = matchstrpos(left_line, '\S\+')
                     if match_data[1] >= 0
-                        call prop_add(lnum, match_data[1] + 1, {
+                        call prop_add(target_lnum, match_data[1] + 1, {
                             \ 'type': prop_type,
                             \ 'length': match_data[2] - match_data[1],
                             \ 'bufnr': left_bufnr
                             \ })
                     endif
                 else
-                    call prop_add(lnum, 1, {
+                    call prop_add(target_lnum, 1, {
                         \ 'type': prop_type,
                         \ 'length': 0,
                         \ 'bufnr': left_bufnr

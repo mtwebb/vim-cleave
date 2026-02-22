@@ -395,7 +395,7 @@ function! TestTextChangedParaDeletion()
     call deletebufline(right_bufnr, 2, 3)
 
     " Simulate TextChanged by calling the handler directly
-    call cleave#on_right_text_changed()
+    call cleave#on_text_changed()
 
     wincmd h
     let prop_lines_after = s:get_prop_lines(bufnr('%'))
@@ -434,7 +434,7 @@ function! TestTextChangedNoChange()
 
     " Call handler without deleting anything
     wincmd l
-    call cleave#on_right_text_changed()
+    call cleave#on_text_changed()
 
     wincmd h
     let prop_lines_after = s:get_prop_lines(bufnr('%'))
@@ -444,6 +444,65 @@ function! TestTextChangedNoChange()
     call cleave#undo_cleave()
     bdelete!
     echomsg "TestTextChangedNoChange completed"
+endfunction
+
+" ============================================================================
+" TextChanged left buffer tests
+" ============================================================================
+
+function! TestTextChangedLeftPropDeleted()
+    if !has('textprop')
+        echomsg "SKIP: TestTextChangedLeftPropDeleted (no textprop)"
+        return
+    endif
+
+    new
+    put =['Left paragraph one.',
+        \ '',
+        \ 'Left paragraph two.',
+        \ '',
+        \ 'Left paragraph three.']
+    1delete
+    setlocal nomodified
+
+    call cursor(1, 20)
+    CleaveAtCursor
+
+    let left_bufnr = bufnr('%')
+    wincmd l
+    let right_bufnr = bufnr('%')
+    call setline(1, ['Right A.',
+        \ '',
+        \ 'Right B.',
+        \ '',
+        \ 'Right C.'])
+
+    wincmd h
+    CleaveSetProps
+
+    let prop_lines_before = s:get_prop_lines(left_bufnr)
+    call AssertEqual(3, len(prop_lines_before),
+        \ 'TextChangedLeft: 3 props before deletion')
+
+    " Delete the middle paragraph from left buffer (lines 2-3: blank + "Left paragraph two.")
+    " This removes the text property on line 3
+    call deletebufline(left_bufnr, 2, 3)
+
+    " Simulate TextChanged by calling the handler directly
+    call cleave#on_text_changed()
+
+    let prop_lines_after = s:get_prop_lines(left_bufnr)
+    call AssertEqual(3, len(prop_lines_after),
+        \ 'TextChangedLeft: 3 props after deletion (new prop added for orphaned para)')
+
+    " Right buffer should still have 3 paragraphs
+    let right_para_starts = s:get_para_starts(right_bufnr)
+    call AssertEqual(3, len(right_para_starts),
+        \ 'TextChangedLeft: right buffer still has 3 paragraphs')
+
+    call cleave#undo_cleave()
+    bdelete!
+    echomsg "TestTextChangedLeftPropDeleted completed"
 endfunction
 
 " ============================================================================
@@ -577,6 +636,7 @@ function! RunAlignAndPropsTests()
     call TestAlignPadding()
     call TestTextChangedParaDeletion()
     call TestTextChangedNoChange()
+    call TestTextChangedLeftPropDeleted()
     call TestSyncLeftParagraphs()
     call TestSyncRightParagraphs()
 

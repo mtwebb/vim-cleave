@@ -266,10 +266,12 @@ Auto-sync behaviors ~
     left buffer and repositions right-buffer paragraphs to match, then
     pads and updates text properties.
 
-    |TextChanged| on RIGHT buffer: Detects paragraph deletions in
-    normal mode. When the paragraph count decreases, orphaned text
-    properties are removed from the left buffer and |:CleaveAlign| is
-    called to reposition remaining paragraphs.
+    |TextChanged| on LEFT or RIGHT buffer: Reconciles text properties
+    in the left buffer with right-buffer paragraphs after any normal-mode
+    edit (e.g., `dd`, `u`, `p`). Walks an interleaved list of text
+    property lines and paragraph start lines to remove orphaned
+    properties or add missing ones until counts match, then calls
+    |:CleaveAlign| to reposition paragraphs.
 
     These autocmds keep the text property anchors up to date so that
     subsequent |:CleaveAlign| or |:CleaveReflow| commands use the correct
