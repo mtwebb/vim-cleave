@@ -526,9 +526,10 @@ function! cleave#create_buffers(left_lines, right_lines, original_name, original
         execute 'autocmd! InsertLeave <buffer=' . left_bufnr . '> call cleave#sync_left_paragraphs()'
     augroup END
 
-    " Detect paragraph deletions in normal mode
+    " Detect text changes in normal mode (both buffers)
     augroup CleaveTextChanged
-        execute 'autocmd! TextChanged <buffer=' . right_bufnr . '> call cleave#on_right_text_changed()'
+        execute 'autocmd! TextChanged <buffer=' . right_bufnr . '> call cleave#on_text_changed()'
+        execute 'autocmd TextChanged <buffer=' . left_bufnr . '> call cleave#on_text_changed()'
     augroup END
 
     return [left_bufnr, right_bufnr]
@@ -1757,46 +1758,94 @@ function! cleave#set_text_properties()
         endif
     endfor
 
-    " Store paragraph count on right buffer for TextChanged detection
+    " Store counts for TextChanged detection
     call setbufvar(right_bufnr, 'cleave_para_count', len(right_para_starts))
+    call setbufvar(left_bufnr, 'cleave_prop_count', properties_added)
     
 endfunction
 
-function! cleave#on_right_text_changed()
+function! cleave#on_text_changed()
     let [original_bufnr, left_bufnr, right_bufnr] = s:resolve_buffers()
     if original_bufnr == -1 || left_bufnr == -1 || right_bufnr == -1
         return
     endif
 
-    let right_lines = getbufline(right_bufnr, 1, '$')
-    let current_count = len(s:para_starts(right_lines))
-    let stored_count = getbufvar(right_bufnr, 'cleave_para_count', current_count)
-
-    if current_count >= stored_count
-        call setbufvar(right_bufnr, 'cleave_para_count', current_count)
+    if !has('textprop')
         return
     endif
 
-    " Paragraph count decreased — remove orphaned text properties
     let prop_type = 'cleave_paragraph_start'
-    let props = has('textprop')
-        \ ? prop_list(1, {'bufnr': left_bufnr, 'types': [prop_type], 'end_lnum': -1})
-        \ : []
+    let props = prop_list(1, {'bufnr': left_bufnr, 'types': [prop_type], 'end_lnum': -1})
+    let right_lines = getbufline(right_bufnr, 1, '$')
     let para_starts = s:para_starts(right_lines)
-    let prop_count = len(props)
 
+    let prop_count = len(props)
+    let para_count = len(para_starts)
+
+    " Build interleaved set of all line numbers that have a prop or para start
+    let all_lines = {}
     for p in props
-        if prop_count <= current_count
+        let all_lines[p.lnum] = 1
+    endfor
+    for lnum in para_starts
+        let all_lines[lnum] = 1
+    endfor
+    let sorted_lines = sort(map(keys(all_lines), 'str2nr(v:val)'), 'n')
+
+    " Build lookup sets
+    let prop_lines = {}
+    for p in props
+        let prop_lines[p.lnum] = 1
+    endfor
+    let para_line_set = {}
+    for lnum in para_starts
+        let para_line_set[lnum] = 1
+    endfor
+
+    " Walk interleaved list to reconcile
+    for lnum in sorted_lines
+        if prop_count == para_count
             break
         endif
-        if index(para_starts, p.lnum) == -1
+        let has_prop = has_key(prop_lines, lnum)
+        let has_para = has_key(para_line_set, lnum)
+
+        if has_prop && !has_para && prop_count > para_count
+            " Orphaned text property — remove it
             call prop_remove({'type': prop_type, 'bufnr': left_bufnr,
-                \ 'id': 0}, p.lnum, p.lnum)
+                \ 'id': 0}, lnum, lnum)
             let prop_count -= 1
+        elseif !has_prop && has_para && prop_count < para_count
+            " Right paragraph without a text property — add one
+            let left_lines = getbufline(left_bufnr, 1, '$')
+            if lnum <= len(left_lines)
+                let left_line = left_lines[lnum - 1]
+                if trim(left_line) != ''
+                    let match_data = matchstrpos(left_line, '\S\+')
+                    if match_data[1] >= 0
+                        call prop_add(lnum, match_data[1] + 1, {
+                            \ 'type': prop_type,
+                            \ 'length': match_data[2] - match_data[1],
+                            \ 'bufnr': left_bufnr
+                            \ })
+                    endif
+                else
+                    call prop_add(lnum, 1, {
+                        \ 'type': prop_type,
+                        \ 'length': 0,
+                        \ 'bufnr': left_bufnr
+                        \ })
+                endif
+            endif
+            let prop_count += 1
         endif
     endfor
 
-    call setbufvar(right_bufnr, 'cleave_para_count', current_count)
+    " Update stored counts
+    call setbufvar(right_bufnr, 'cleave_para_count', para_count)
+    call setbufvar(left_bufnr, 'cleave_prop_count', prop_count)
+
+    " Re-align
     call cleave#align_right_to_left_paragraphs()
 endfunction
 

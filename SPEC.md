@@ -287,19 +287,20 @@ For interleave. truncate right buffer line if it does not fit (use elipsis to in
 
 **Cursor**: Restored. `syncbind` called.
 
-### TextChanged on RIGHT buffer → `cleave#on_right_text_changed()`
+### TextChanged on LEFT or RIGHT buffer → `cleave#on_text_changed()`
 
-**Purpose**: Detect paragraph deletions in the right buffer and remove orphaned text properties from the left buffer.
+**Purpose**: Reconcile text properties in the left buffer with right-buffer paragraphs after any normal-mode edit in either buffer (e.g., `dd`, `u`, `p`), then re-align.
 
 **Behavior**:
-1. Count current right-buffer paragraphs (simple detection).
-2. Compare with stored paragraph count (`b:cleave_para_count`).
-3a. start checking each text prop from the top
-3b. if there is a paragraph start in right buffer on the text property line, leave that text property
-3c. if there is not paragrah start in right buffer on the text property line AND there are more text properties than right buffer paragraphs, remove that text property and update number of text property count
-3d. Once Text property count matches right buffer count, can stop checking text properties
-3e. Call CleaveAlign 
-4. Update stored count to current value.
+1. Get current text property positions from the left buffer and current right-buffer paragraph starts (simple detection).
+2. Build an interleaved set of lines that have a text property, a right paragraph start, or both.
+3. Walk the interleaved list from the top:
+   a. If line has both a text property and a right paragraph start: leave text property.
+   b. If line has a text property but NO right paragraph start, AND text property count > right paragraph count: REMOVE that text property and decrement text property count.
+   c. If line has NO text property but a right paragraph start, AND text property count < right paragraph count: ADD a text property on that line and increment text property count.
+   d. Once text property count matches right paragraph count, stop.
+4. Call CleaveAlign.
+5. Update stored counts (`b:cleave_para_count`, `b:cleave_prop_count`).
 
 
 ### BufWinEnter on either buffer
