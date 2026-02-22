@@ -234,6 +234,33 @@ Both windows are `scrollbind`-ed so they scroll as a single document. Scrollbind
 
 **Effects**: None. Output via `echomsg` (viewable with `:messages`).
 
+two display options: sequential or interleaved.
+example sequential:
+--- Left text properties ---
+  line   3  col  1  len  6  anchor: Sapien
+  line  12  col  1  len  9  anchor: imperdiet
+  line  33  col  1  len  4  anchor: diam
+  line  42  col  6  len  6  anchor: Sapien
+  line 121  col  1  len  6  anchor: Tempus
+--- Right paragraph starts ---
+  line   3: In metus vulputate eu scelerisque felis
+  line  12: Ultricies integer quis auctor elit sed
+  line  34: Add a new note
+  line  43: In fermentum posuere urna nec tincidunt.
+  line 122: Turpis egestas pretium.
+
+Same Example Interleaved:
+     --- Left text properties ---                   --- Right paragraph starts ---
+line   3:  col  1  len  6  anchor: Sapien      In metus vulputate eu scelerisque felis
+line  12:  col  1  len  9  anchor: imperdiet   Ultricies integer quis auctor elit sed
+line  33:  col  1  len  4  anchor: diam
+line  34:                                      Add a new note
+line  42:  col  6  len  6  anchor: Sapien
+line  43:                                      In fermentum posuere urna nec tincidunt.
+line 121:  col  1  len  6  anchor: Tempus
+line 122:                                      Turpis egestas pretium.
+
+For interleave. truncate right buffer line if it does not fit (use elipsis to indicate)
 ---
 
 ## Autocmd Behaviors
