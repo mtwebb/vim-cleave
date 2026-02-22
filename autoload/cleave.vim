@@ -31,6 +31,16 @@ endif
 " Paragraph Detection Helpers
 " ============================================================================
 
+" Return v:true if line has ``` opening and closing on the same line (e.g. ```text```)
+function! s:is_inline_fence(line)
+    let stripped = substitute(a:line, '^\s*', '', '')
+    if stripped[:2] !=# '```'
+        return v:false
+    endif
+    let after = stripped[3:]
+    return after =~# '```\s*$'
+endfunction
+
 " Simple paragraph start: non-empty line that is first or follows an empty line
 function! s:is_para_start(lines, idx)
     if trim(a:lines[a:idx]) ==# ''
@@ -511,8 +521,9 @@ function! cleave#create_buffers(left_lines, right_lines, original_name, original
     setlocal bufhidden=hide
     setlocal noswapfile
     execute 'setlocal foldcolumn=' . a:original_foldcolumn
-    " Set textwidth based on longest line in left buffer
+    " Set textwidth before filetype so ftplugin/left.vim sees correct &tw
     call cleave#set_textwidth_to_longest_line()
+    setlocal filetype=left
     
     " Create right buffer
     silent execute 'hide enew'
@@ -851,7 +862,7 @@ function! cleave#reflow_right_buffer(options, current_bufnr, left_bufnr,
             if start_line > 0 && start_line <= len(current_lines)
                 let line_idx = start_line - 1
                 let line_text = current_lines[line_idx]
-                if line_text =~# fence_pattern
+                if line_text =~# fence_pattern && !s:is_inline_fence(line_text)
                     let inside_fence = v:true
                 endif
             endif
@@ -866,7 +877,7 @@ function! cleave#reflow_right_buffer(options, current_bufnr, left_bufnr,
 
         call add(reflowed_paragraphs, reflowed_para)
         for line_text in para_lines
-            if line_text =~# fence_pattern
+            if line_text =~# fence_pattern && !s:is_inline_fence(line_text)
                 let inside_fence = !inside_fence
             endif
         endfor
@@ -960,7 +971,7 @@ function! s:locate_anchors_after_reflow(buffer_lines, anchors)
             let line_idx = last_found_line
             while line_idx < len(a:buffer_lines)
                 let line_text = a:buffer_lines[line_idx]
-                if line_text =~# fence_pattern
+                if line_text =~# fence_pattern && !s:is_inline_fence(line_text)
                     let inside_fence = !inside_fence
                     let line_idx += 1
                     continue
@@ -1044,7 +1055,9 @@ function! cleave#reflow_text(lines, options)
                 let current_paragraph = []
             endif
             call add(reflowed, line)
-            let inside_fence = !inside_fence
+            if !s:is_inline_fence(line)
+                let inside_fence = !inside_fence
+            endif
             continue
         endif
 
