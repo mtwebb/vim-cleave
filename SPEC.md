@@ -350,3 +350,4 @@ Searches the (reflowed) buffer for each anchor word to find where it moved. Sear
 | `g:cleave_hyphen_min_length` | `8` | Minimum word length for hyphenation |
 | `g:cleave_justify_last_line` | `0` | Justify the last line of justified paragraphs |
 | `g:cleave_modeline` | `'read'` | Modeline mode: `read`, `update`, or `ignore` |
+| `g:cleave_debug_timing` | `0` | When enabled, logs `reltime` measurements for each step of `CleaveAtCursor`/`CleaveAtColumn` via `echomsg` (viewable with `:messages`) |

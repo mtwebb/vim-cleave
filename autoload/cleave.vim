@@ -27,6 +27,10 @@ if !exists('g:cleave_justify_last_line')
     let g:cleave_justify_last_line = 0
 endif
 
+if !exists('g:cleave_debug_timing')
+    let g:cleave_debug_timing = 0
+endif
+
 " ============================================================================
 " Paragraph Detection Helpers
 " ============================================================================
@@ -436,24 +440,34 @@ function! s:split_buffer_at_col(bufnr, cleave_col)
     let saved_hidden = &hidden
     set hidden
     try
+        let timing = g:cleave_debug_timing
+        if timing
+            let t_total = reltime()
+        endif
         let original_bufnr = a:bufnr
         let original_winid = win_getid()
         let original_cursor = getcurpos()
 
         " 2. Content Extraction
+        if timing | let t0 = reltime() | endif
         let original_lines = getbufline(original_bufnr, 1, '$')
         let [left_lines, right_lines] = cleave#split_content(original_lines, a:cleave_col)
+        if timing | echomsg 'Cleave timing: split_content ' . reltimestr(reltime(t0)) | endif
 
         " 3. Buffer Creation
+        if timing | let t0 = reltime() | endif
         let original_name = expand('%:t')
         if empty(original_name)
             let original_name = 'noname'
         endif
         let original_foldcolumn = &foldcolumn
         let [left_bufnr, right_bufnr] = cleave#create_buffers(left_lines, right_lines, original_name, original_foldcolumn)
+        if timing | echomsg 'Cleave timing: create_buffers ' . reltimestr(reltime(t0)) | endif
 
         " 4. Window Management
+        if timing | let t0 = reltime() | endif
         call cleave#setup_windows(a:cleave_col, left_bufnr, right_bufnr, original_winid, original_cursor, original_foldcolumn)
+        if timing | echomsg 'Cleave timing: setup_windows ' . reltimestr(reltime(t0)) | endif
 
         " 5. Apply modeline settings that need window/global context
         let ml_settings = getbufvar(original_bufnr, 'cleave_modeline_settings', {})
@@ -482,7 +496,11 @@ function! s:split_buffer_at_col(bufnr, cleave_col)
         call setbufvar(original_bufnr, 'cleave_col_last', a:cleave_col)
 
         " 7. Initialize text properties to show paragraph alignment
+        if timing | let t0 = reltime() | endif
         call cleave#set_text_properties()
+        if timing | echomsg 'Cleave timing: set_text_properties ' . reltimestr(reltime(t0)) | endif
+
+        if timing | echomsg 'Cleave timing: TOTAL ' . reltimestr(reltime(t_total)) | endif
     finally
         let &hidden = saved_hidden
     endtry
@@ -501,10 +519,16 @@ endfunction
 function! cleave#split_content(lines, cleave_col)
     let left_lines = []
     let right_lines = []
+    let byte_col = a:cleave_col - 1
 
     for line in a:lines
-        let left_part = cleave#virtual_strpart(line, 1, a:cleave_col)
-        let right_part = cleave#virtual_strpart(line, a:cleave_col)
+        if strdisplaywidth(line) == len(line)
+            let left_part = strpart(line, 0, byte_col)
+            let right_part = strpart(line, byte_col)
+        else
+            let left_part = cleave#virtual_strpart(line, 1, a:cleave_col)
+            let right_part = cleave#virtual_strpart(line, a:cleave_col)
+        endif
         call add(left_lines, left_part)
         call add(right_lines, right_part)
     endfor
