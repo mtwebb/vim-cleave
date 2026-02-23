@@ -48,7 +48,7 @@ function! TestReflowBasic()
         echo (i+1) . ": " . right_lines[i]
     endfor
     
-    call cleave#undo_cleave()
+    call cleave#UndoCleave()
     bdelete!
     echo "Basic reflow test completed"
 endfunction
@@ -82,7 +82,7 @@ function! TestReflowRightBuffer()
         echo (i+1) . ": " . right_lines[i]
     endfor
     
-    call cleave#undo_cleave()
+    call cleave#UndoCleave()
     bdelete!
     echo "Right buffer reflow test completed"
 endfunction
@@ -109,7 +109,7 @@ function! TestReflowEdgeCases()
     CleaveReflow 10
     echo "Minimum width test passed"
     
-    call cleave#undo_cleave()
+    call cleave#UndoCleave()
     bdelete!
     echo "Edge cases test completed"
 endfunction
@@ -156,7 +156,7 @@ function! TestReflowFencedBlocks()
     call AssertEqual(string(before_fence), string(after_fence),
         \ 'Fence content preserved')
 
-    call cleave#undo_cleave()
+    call cleave#UndoCleave()
     bdelete!
     echo "Fenced reflow test completed"
 endfunction
@@ -218,7 +218,7 @@ function! TestReflowJustifyAndHyphenation()
     let g:cleave_dehyphenate = saved_dehyphenate
     let g:cleave_hyphen_min_length = saved_min_length
 
-    call cleave#undo_cleave()
+    call cleave#UndoCleave()
     bdelete!
     echo "Justify and hyphenation test completed"
 endfunction
@@ -278,10 +278,10 @@ function! TestShiftRightParagraph()
         \ 'Second right paragraph starts here.',
         \ 'Second right paragraph line two.'])
 
-    call cleave#set_text_properties()
+    call cleave#SetTextProperties()
 
     call cursor(4, 5)
-    call cleave#shift_paragraph('up')
+    call cleave#ShiftParagraph('up')
 
     let right_lines = getline(1, '$')
     let shifted_index = index(right_lines, 'Second right paragraph starts here.')
@@ -295,7 +295,7 @@ function! TestShiftRightParagraph()
 
     wincmd l
     call cursor(3, 5)
-    call cleave#shift_paragraph('down')
+    call cleave#ShiftParagraph('down')
 
     let right_lines_after = getline(1, '$')
     let shifted_index_down = index(right_lines_after, 'Second right paragraph starts here.')
@@ -303,14 +303,14 @@ function! TestShiftRightParagraph()
 
     wincmd h
     call cursor(3, 1)
-    call cleave#shift_paragraph('up')
+    call cleave#ShiftParagraph('up')
     let left_props_after = prop_list(1, {'bufnr': bufnr('%'), 'types': ['cleave_paragraph_start'], 'end_lnum': -1})
     let prop_lines_after = map(copy(left_props_after), 'v:val.lnum')
     call AssertEqual(4, prop_lines_after[1], 'Left buffer shift respected anchors')
 
     wincmd l
     call cursor(2, 1)
-    call cleave#shift_paragraph('up')
+    call cleave#ShiftParagraph('up')
     let right_lines_shift = getline(1, '$')
     let shifted_first = index(right_lines_shift, 'First right paragraph line one.')
     call AssertEqual(1, shifted_first + 1, 'Shift respects left anchor spacing')
@@ -321,7 +321,7 @@ function! TestShiftRightParagraph()
         \ 'Second left paragraph.',
         \ ''])
     setlocal nomodified
-    call cleave#set_text_properties()
+    call cleave#SetTextProperties()
 
     wincmd l
     let right_before = getline(1, '$')
@@ -334,7 +334,7 @@ function! TestShiftRightParagraph()
 
     wincmd l
     call cursor(4, 1)
-    call cleave#shift_paragraph('up')
+    call cleave#ShiftParagraph('up')
     let right_lines_blank = getline(1, '$')
     let blank_index = index(right_lines_blank, '')
     call AssertEqual(3, blank_index + 1, 'Shift does not insert blank lines')
@@ -349,7 +349,7 @@ function! TestShiftRightParagraph()
 
     call cursor(1, 1)
     let right_positions_before_down = copy(right_positions_after)
-    call cleave#shift_paragraph('down')
+    call cleave#ShiftParagraph('down')
     let right_lines_after_down = getline(1, '$')
     let right_positions_after_down = []
     for i in range(len(right_lines_after_down))
@@ -359,7 +359,7 @@ function! TestShiftRightParagraph()
     endfor
     call AssertEqual(string(right_positions_before_down), string(right_positions_after_down), 'Right positions unchanged when shift blocked')
 
-    call cleave#undo_cleave()
+    call cleave#UndoCleave()
     bdelete!
     echomsg "Shift paragraph test completed"
 endfunction

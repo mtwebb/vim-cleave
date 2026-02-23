@@ -147,7 +147,7 @@ Sets the number of spaces between the left and right content when joining buffer
 
 **Example:**
 ```vim
-let g:cleave_gutter = 5
+g:cleave_gutter = 5
 ```
 
 #### `g:cleave_reflow_mode`
@@ -156,7 +156,7 @@ Default reflow mode for `:CleaveReflow` (`ragged` or `justify`).
 **Default:** `ragged`
 
 ```vim
-let g:cleave_reflow_mode = 'justify'
+g:cleave_reflow_mode = 'justify'
 ```
 
 #### `g:cleave_hyphenate`
@@ -191,7 +191,7 @@ Controls how vim-cleave interacts with modelines in files. Modelines allow cleav
 
 **Example:**
 ```vim
-let g:cleave_modeline = 'update'
+g:cleave_modeline = 'update'
 ```
 
 ### Keybinding Suggestions
@@ -220,7 +220,7 @@ nnoremap ]p :CleaveShiftParagraphDown<CR>
 
 ## Requirements
 
-- Vim 8.0 or higher
+- Vim 9.0 or higher (vim9script)
 - Text properties support (for advanced paragraph alignment features)
 
 ## Contributing

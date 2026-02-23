@@ -1,4 +1,4 @@
-*cleave.txt*    For Vim version 8.0
+*cleave.txt*    For Vim version 9.0
 
 ==============================================================================
 CONTENTS                                     *cleave-contents*
@@ -289,7 +289,7 @@ OPTIONS                                      *cleave-options*
     Default: `3`
     
     Example: >
-        let g:cleave_gutter = 5
+        g:cleave_gutter = 5
 <
 
 *g:cleave_reflow_mode*
@@ -299,7 +299,7 @@ OPTIONS                                      *cleave-options*
     Default: `ragged`
 
     Example: >
-        let g:cleave_reflow_mode = 'justify'
+        g:cleave_reflow_mode = 'justify'
 <
 
 *g:cleave_hyphenate*
@@ -343,7 +343,7 @@ OPTIONS                                      *cleave-options*
     Default: `read`
 
     Example: >
-        let g:cleave_modeline = 'update'
+        g:cleave_modeline = 'update'
 <
 
 ==============================================================================
@@ -443,7 +443,7 @@ Basic workflow: >
 
 Modeline workflow: >
     " Enable modeline updates in your vimrc
-    let g:cleave_modeline = 'update'
+    g:cleave_modeline = 'update'
 
     " Open a file with a modeline at the end:
     "   vim: cc=91 tw=79 fdc=5 wm=3 ve=all
@@ -463,9 +463,9 @@ Modeline workflow: >
 ==============================================================================
 REQUIREMENTS                                 *cleave-requirements*
 
-- Vim 8.0 or higher
+- Vim 9.0 or higher (vim9script)
 - Text properties support (for advanced paragraph alignment features)
-  Text properties are available in Vim 8.1+ and provide enhanced paragraph
+  Text properties are available in Vim 9.0+ and provide enhanced paragraph
   tracking during reflow operations.
 
 ==============================================================================

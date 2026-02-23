@@ -265,7 +265,7 @@ For interleave. truncate right buffer line if it does not fit (use elipsis to in
 
 ## Autocmd Behaviors
 
-### InsertLeave on RIGHT buffer → `cleave#sync_right_paragraphs()`
+### InsertLeave on RIGHT buffer → `cleave#SyncRightParagraphs()`
 
 **Purpose**: Update padding and text properties after the user edits the right buffer.
 
@@ -275,7 +275,7 @@ For interleave. truncate right buffer line if it does not fit (use elipsis to in
 
 **Cursor**: Restored. `syncbind` called.
 
-### InsertLeave on LEFT buffer → `cleave#sync_left_paragraphs()`
+### InsertLeave on LEFT buffer → `cleave#SyncLeftParagraphs()`
 
 **Purpose**: Reposition right-buffer paragraphs to stay aligned after the user edits the left buffer.
 
@@ -287,7 +287,7 @@ For interleave. truncate right buffer line if it does not fit (use elipsis to in
 
 **Cursor**: Restored. `syncbind` called.
 
-### TextChanged on LEFT or RIGHT buffer → `cleave#on_text_changed()`
+### TextChanged on LEFT or RIGHT buffer → `cleave#OnTextChanged()`
 
 **Purpose**: Reconcile text properties in the left buffer with right-buffer paragraphs after any normal-mode edit in either buffer (e.g., `dd`, `u`, `p`), then re-align.
 
@@ -313,27 +313,23 @@ For interleave. truncate right buffer line if it does not fit (use elipsis to in
 
 ## Internal Helper Contracts
 
-### `s:in_buf_context(bufnr, Fn)`
+### `ReplaceBufferLines(bufnr, lines)`
 
-Executes `Fn` in the context of `bufnr` for proper undo history. If the buffer is displayed in a window, switches to that window (with scrollbind temporarily disabled on both source and target windows to prevent scroll disruption), runs `Fn`, then switches back and restores scrollbind.
+Replaces all buffer content. Removes excess trailing lines.
 
-### `s:replace_buffer_lines(bufnr, lines)` / `s:replace_current_lines(lines)`
-
-Replaces all buffer content. Removes excess trailing lines. Used via `s:in_buf_context` for proper undo.
-
-### `s:equalize_buffer_lengths(left_bufnr, right_bufnr)`
+### `EqualizeBufferLengths(left_bufnr, right_bufnr)`
 
 Compares the line counts of both buffers and pads the shorter one with blank lines so they are the same length. Saves and restores cursor position.
 
-### `s:build_paragraph_placement(paragraphs, target_line_numbers)`
+### `BuildParagraphPlacement(paragraphs, target_line_numbers)`
 
 Places paragraphs at target line numbers. If a paragraph's target is before the current position (would overlap), it is placed at the current position instead. A blank separator is added between paragraphs.
 
-### `s:capture_paragraph_anchors(left_lines, para_starts)`
+### `CaptureAnchors(left_lines, para_starts)`
 
 For each paragraph start position, finds the first word of the corresponding left-buffer line to use as an anchor. Falls back to searching nearby lines if the exact line is empty.
 
-### `s:locate_anchors_after_reflow(buffer_lines, anchors)`
+### `LocateAnchorsAfterReflow(buffer_lines, anchors)`
 
 Searches the (reflowed) buffer for each anchor word to find where it moved. Searches forward from the last found position. Skips fenced code blocks. Used only after left-buffer reflow.
 
