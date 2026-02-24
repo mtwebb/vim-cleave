@@ -224,6 +224,23 @@ Both windows are `scrollbind`-ed so they scroll as a single document. Scrollbind
 
 ---
 
+### CleaveJump
+
+**Purpose**: Jump to the same line in the peer buffer.
+
+**Preconditions**: Must be in a cleave buffer with a visible peer window.
+
+**Behavior**:
+1. Read `b:cleave` from the current buffer to find the peer buffer.
+2. Find the peer buffer's window.
+3. Move cursor to the peer window at the same line number (clamped to peer buffer length).
+
+**Left buffer effects**: NONE.
+**Right buffer effects**: NONE.
+**Cursor**: Moves to the peer window at the same line.
+
+---
+
 ### CleaveDebug
 
 **Purpose**: Print left-buffer text properties and right-buffer paragraph starts for debugging.

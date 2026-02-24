@@ -2012,3 +2012,26 @@ export def DebugParagraphs(...args: list<any>)
             \ lnum, left_part, right_part)
     endfor
 enddef
+
+export def JumpToPeer()
+    var info = getbufvar(bufnr('%'), 'cleave', {})
+    if empty(info)
+        echoerr "Cleave: Not in a cleave buffer."
+        return
+    endif
+    var peer = info.peer
+    if !bufexists(peer)
+        echoerr "Cleave: Peer buffer no longer exists."
+        return
+    endif
+    var peer_win = get(win_findbuf(peer), 0, -1)
+    if peer_win == -1
+        echoerr "Cleave: Peer window not found."
+        return
+    endif
+    var target_line = line('.')
+    var target_col = col('.')
+    win_gotoid(peer_win)
+    var last_line = line('$')
+    cursor(min([target_line, last_line]), target_col)
+enddef

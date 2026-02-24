@@ -132,6 +132,9 @@ Creates or updates text properties that mark paragraph start positions in the le
 #### `:CleaveToggleTextAnchorVis`
 Toggles the visual highlighting of paragraph anchor text properties between visible and invisible states. Useful for debugging paragraph alignment.
 
+#### `:CleaveJump`
+Jumps the cursor to the same line in the peer buffer (left → right or right → left). Useful for quickly switching context between main text and margin notes without losing your place.
+
 #### `:CleaveDebug [mode]`
 Prints left-buffer text properties and right-buffer paragraph starts for debugging. Output via `:messages`.
 
@@ -208,6 +211,12 @@ If your terminal does not pass Meta, these bracket mappings are easy to repeat:
 ```vim
 nnoremap [p :CleaveShiftParagraphUp<CR>
 nnoremap ]p :CleaveShiftParagraphDown<CR>
+```
+
+Jump to the same line in the other buffer with Tab:
+
+```vim
+nnoremap <Tab> :CleaveJump<CR>
 ```
 
 ## Use Cases

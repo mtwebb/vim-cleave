@@ -237,6 +237,15 @@ COMMANDS                                     *cleave-commands*
     This toggles paragraph anchor visibility, making it easy to see where
     paragraph alignment points are located in the left buffer.
 
+*:CleaveJump*                                *cleave-jump*
+    Jumps the cursor to the same line in the peer buffer. If the cursor is
+    in the left buffer, it moves to the right buffer and vice versa. The
+    cursor lands on the same line number (clamped to the peer buffer length).
+
+    Suggested mapping: >
+        nnoremap <Tab> :CleaveJump<CR>
+<
+
 *:CleaveDebug* [mode]                        *cleave-debug*
     Prints left-buffer text properties and right-buffer paragraph starts
     for debugging alignment issues. Output is via |echomsg| and can be

@@ -118,6 +118,7 @@ sequenceDiagram
 | `:CleaveAlign` | Calls `cleave#AlignRightToLeftParagraphs()`. |
 | `:CleaveToggleTextAnchorVis` | Calls `cleave#ToggleParagraphHighlight()`. |
 | `:CleaveShiftParagraphUp/Down` | Calls `cleave#ShiftParagraph()`. |
+| `:CleaveJump` | Calls `cleave#JumpToPeer()`. |
 | `:CleaveDebug` | Calls `cleave#DebugParagraphs()`. |
 
 ### `autoload/cleave/modeline.vim`
@@ -322,6 +323,8 @@ sequenceDiagram
   Stores paragraph count in `b:cleave_para_count`. |
 | `cleave#DebugParagraphs([mode])` | Prints text properties and paragraph
   starts in interleaved or sequential format. |
+| `cleave#JumpToPeer()` | Jumps cursor to the same line in the peer
+  buffer's window. |
 
 ### `ftplugin/left.vim`
 
