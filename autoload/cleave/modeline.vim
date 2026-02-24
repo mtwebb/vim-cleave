@@ -252,7 +252,7 @@ def InferTextwidth(bufnr: number): number
     var line_count = 0
     for line in lines
         if line !=# ''
-            total_len += len(line)
+            total_len += strdisplaywidth(line)
             line_count += 1
         endif
     endfor

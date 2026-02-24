@@ -1960,8 +1960,8 @@ export def DebugParagraphs(...args: list<any>)
     var para_by_line = {}
     for lnum in para_starts
         var preview = trim(right_lines[lnum - 1])
-        if len(preview) > 50
-            preview = preview[: 49] .. '...'
+        if strchars(preview) > 50
+            preview = strcharpart(preview, 0, 50) .. '...'
         endif
         para_by_line[lnum] = preview
     endfor
@@ -2005,8 +2005,8 @@ export def DebugParagraphs(...args: list<any>)
         var left_part = has_key(prop_by_line, lnum) ? prop_by_line[lnum] : ''
         var right_part = has_key(para_by_line, lnum) ? para_by_line[lnum] : ''
         var right_avail = &columns - left_col_width - 10
-        if right_avail > 3 && len(right_part) > right_avail
-            right_part = right_part[: right_avail - 4] .. '...'
+        if right_avail > 3 && strchars(right_part) > right_avail
+            right_part = strcharpart(right_part, 0, right_avail - 3) .. '...'
         endif
         echomsg printf('line %3d:  %-' .. left_col_width .. 's  %s',
             \ lnum, left_part, right_part)
