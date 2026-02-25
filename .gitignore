@@ -2,7 +2,6 @@
 .DS_Store
 
 # Dev notes and planning
-AGENT.md
 AGENTS.md
 ARCHITECTURE.md
 JOURNAL.md
@@ -10,7 +9,7 @@ SPEC.md
 TODO.md
 amp.md
 gemini.md
-issues.md
+ISSUES.md
 notes.md
 plan.md
 vim_cleave_plan.md
