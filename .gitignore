@@ -1,18 +1,22 @@
-*.swp
-*.swo
-*.swm
-*.swn
-*.swx
-*.swl
 *.sw*
+.DS_Store
+
+# Dev notes and planning
 AGENT.md
 AGENTS.md
+ARCHITECTURE.md
+JOURNAL.md
+SPEC.md
+TODO.md
 amp.md
 gemini.md
+issues.md
 notes.md
 plan.md
-TODO.md
-issues.md
+vim_cleave_plan.md
+
+# Dev artifacts
+debug_screenshots/
 *_results.txt
 test_load_plugin.vim
 test/fixtures/failures/*.txt
