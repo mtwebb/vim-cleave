@@ -1,0 +1,7 @@
+seed=424242
+cleave_col=46
+width=33
+side=right
+mode=ragged
+source_case=test/fixtures/failures/reflow_failure_20260224_224822_seed424242_iter97.txt
+source_meta=test/fixtures/failures/reflow_failure_20260224_224822_seed424242_iter97.meta

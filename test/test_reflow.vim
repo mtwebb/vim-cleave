@@ -364,6 +364,68 @@ function! TestShiftRightParagraph()
     echomsg "Shift paragraph test completed"
 endfunction
 
+function! s:RunRegressionFixture(case_file, meta_file)
+    let had_seed = exists('g:cleave_fuzz_seed')
+    let had_iterations = exists('g:cleave_fuzz_iterations')
+    let had_replay = exists('g:cleave_fuzz_replay_file')
+    let had_meta = exists('g:cleave_fuzz_replay_meta')
+
+    let saved_seed = get(g:, 'cleave_fuzz_seed', 0)
+    let saved_iterations = get(g:, 'cleave_fuzz_iterations', 0)
+    let saved_replay = get(g:, 'cleave_fuzz_replay_file', '')
+    let saved_meta = get(g:, 'cleave_fuzz_replay_meta', '')
+
+    let g:cleave_fuzz_seed = 1
+    let g:cleave_fuzz_iterations = 1
+    let g:cleave_fuzz_replay_file = a:case_file
+    if filereadable(a:meta_file)
+        let g:cleave_fuzz_replay_meta = a:meta_file
+    else
+        unlet! g:cleave_fuzz_replay_meta
+    endif
+
+    source test/fuzz/reflow_fuzz.vim
+    let status = RunReflowFuzz()
+
+    if had_seed
+        let g:cleave_fuzz_seed = saved_seed
+    else
+        unlet! g:cleave_fuzz_seed
+    endif
+    if had_iterations
+        let g:cleave_fuzz_iterations = saved_iterations
+    else
+        unlet! g:cleave_fuzz_iterations
+    endif
+    if had_replay
+        let g:cleave_fuzz_replay_file = saved_replay
+    else
+        unlet! g:cleave_fuzz_replay_file
+    endif
+    if had_meta
+        let g:cleave_fuzz_replay_meta = saved_meta
+    else
+        unlet! g:cleave_fuzz_replay_meta
+    endif
+
+    return status
+endfunction
+
+function! TestReflowRegressionFixtures()
+    let fixtures = sort(glob('test/fixtures/regressions/*.txt', 0, 1))
+    if empty(fixtures)
+        echomsg 'Skipping regression fixtures: none found'
+        return
+    endif
+
+    for case_file in fixtures
+        let meta_file = substitute(case_file, '\.txt$', '.meta', '')
+        let status = s:RunRegressionFixture(case_file, meta_file)
+        let msg = 'Regression fixture passes: ' . fnamemodify(case_file, ':t')
+        call AssertEqual(0, status, msg)
+    endfor
+endfunction
+
 function! RunReflowTests()
     echo "Starting reflow tests..."
     echo "========================"
@@ -381,6 +443,8 @@ function! RunReflowTests()
     call TestShiftRightParagraph()
     echo ""
     call TestRecleaveLast()
+    echo ""
+    call TestReflowRegressionFixtures()
 
     echo "========================"
     echo "All reflow tests completed"

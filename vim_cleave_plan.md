@@ -507,6 +507,36 @@ for opt in ['tabstop', 'shiftwidth', 'expandtab']
 endfor
 ```
 
+### 11. Add executable spec + fuzzing loop for reflow
+Add a property-based fuzzing loop that treats core reflow behavior as
+invariants, then runs generated buffer states through headless Vim. Any
+failing case is auto-minimized and saved as a permanent regression fixture.
+
+Core invariants to enforce:
+- Idempotence: reflowing twice with identical settings yields identical text.
+- Paragraph boundaries are preserved (no accidental merge/split).
+- Width compliance: all wrapped lines honor configured width constraints.
+- Anchor stability: left/right paragraph anchors remain valid after reflow.
+- Round-trip integrity: cleave -> edit/reflow -> join keeps intended content.
+
+Implementation steps:
+1. Add `test/fuzz/reflow_fuzz.vim` to generate randomized paragraphs,
+   indentation, list markers, blank lines, and multibyte text.
+1. Execute each seed through `:Cleave`, `:CleaveReflow`, and `:CleaveJoin`
+   in non-interactive Vim.
+1. Assert invariants and emit a minimal reproducible seed + buffer snapshot on
+   failure.
+1. Add `test/test_reflow_fuzz.sh` with deterministic seed support and
+   configurable iteration counts.
+1. Add a reducer script (delta-minimization) that shrinks a failing case into
+   a compact fixture under `test/fixtures/regressions/`.
+1. Promote minimized failures into deterministic tests in `test/test_reflow.vim`.
+
+Adoption criteria:
+- Baseline fuzz target: 10,000 seeds passing at default settings.
+- Runtime stays bounded (target: under ~2 minutes locally).
+- Every discovered fuzz failure produces a stored regression case.
+
 ## Possible Improvements
 
 ### Robustness
@@ -538,6 +568,11 @@ endfor
 - Integrate multibyte test suites into the main test runner (`test/test_reflow.vim` or `test/test_reflow_simple.sh`)
 - Add integration tests that exercise the full cleave/edit/join round-trip with multibyte content
 - Add regression tests for `set_textwidth_to_longest_line` off-by-one (issue: ignores last line)
+- Fix legacy modeline test harness API mismatch: `test/test_modeline.vim`
+  calls lowercase/snake_case names (`parse`, `ensure`, `infer`,
+  `build_string`) while modeline exports are PascalCase
+  (`Parse`, `Ensure`, `Infer`, `BuildString`). Decide one canonical API and
+  either add compatibility wrappers or update the test file and shell runner.
 
 ### debug line
 vim -c "set rtp+=." -c "source plugin/cleave.vim" -c "e test/lorem_ipsum.md" -c "colo tuftish" -c "CleaveAtColumn 91" -c "CleaveReflow 65"

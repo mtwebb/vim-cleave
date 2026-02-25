@@ -15,3 +15,5 @@ TODO.md
 issues.md
 *_results.txt
 test_load_plugin.vim
+test/fixtures/failures/*.txt
+test/fixtures/failures/*.meta

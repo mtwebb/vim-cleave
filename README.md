@@ -232,6 +232,50 @@ nnoremap <Tab> :CleaveJump<CR>
 - Vim 9.0 or higher (vim9script)
 - Text properties support (for advanced paragraph alignment features)
 
+## Testing
+
+Run the baseline reflow test suite:
+
+```bash
+vim -u NONE -es -c "source test/test_reflow.vim" -c "call RunReflowTests()" -c "qa!"
+```
+
+Run deterministic property-based fuzzing for reflow invariants:
+
+```bash
+test/test_reflow_fuzz.sh --seed 12345 --iterations 1000
+```
+
+Run deterministic property-based fuzzing for split/join lifecycle invariants:
+
+```bash
+test/test_split_join_fuzz.sh --seed 12345 --iterations 1000
+```
+
+Run deterministic property-based fuzzing for paragraph shift/alignment invariants:
+
+```bash
+test/test_paragraph_ops_fuzz.sh --seed 12345 --iterations 1000
+```
+
+Run deterministic property-based fuzzing for modeline parse/split/join invariants:
+
+```bash
+test/test_modeline_fuzz.sh --seed 12345 --iterations 1000
+```
+
+Replay a saved failing fuzz case:
+
+```bash
+test/test_reflow_fuzz.sh --replay test/fixtures/failures/CASE.txt --meta test/fixtures/failures/CASE.meta
+```
+
+Minimize a failing fuzz case into a regression fixture:
+
+```bash
+test/fuzz/reduce_reflow_failure.sh test/fixtures/failures/CASE.txt
+```
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit issues and pull requests.

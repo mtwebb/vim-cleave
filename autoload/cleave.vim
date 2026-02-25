@@ -938,34 +938,22 @@ export def ReflowRightBuffer(options: dict<any>, current_bufnr: number, left_buf
     for i in range(len(para_starts))
         var target_line = para_starts[i]
         var reflowed_para = reflowed_paragraphs[i]
-        var para_length = len(reflowed_para)
-
-        var can_fit_at_original = true
-
-        if i < len(para_starts) - 1
-            var next_target = para_starts[i + 1]
-            var para_end_at_original = target_line + para_length - 1
-
-            if para_end_at_original >= next_target
-                can_fit_at_original = false
-            endif
-        endif
-
         var actual_position = target_line
-        if current_line_num > target_line || !can_fit_at_original
-            actual_position = current_line_num
+        var min_position = current_line_num
 
-            if current_line_num > 1 && len(new_buffer_lines) > 0 && new_buffer_lines[-1] != ''
-                add(new_buffer_lines, '')
-                current_line_num += 1
-                actual_position = current_line_num
-            endif
-        else
-            while current_line_num < target_line
-                add(new_buffer_lines, '')
-                current_line_num += 1
-            endwhile
+        # Maintain at least one blank line between paragraphs.
+        if current_line_num > 1 && len(new_buffer_lines) > 0 && new_buffer_lines[-1] != ''
+            min_position += 1
         endif
+
+        if actual_position < min_position
+            actual_position = min_position
+        endif
+
+        while current_line_num < actual_position
+            add(new_buffer_lines, '')
+            current_line_num += 1
+        endwhile
 
         add(new_para_starts, actual_position)
 

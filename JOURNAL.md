@@ -1,5 +1,150 @@
 # Development Journal
 
+## 2026-02-24: Added fuzz suites for split/join, paragraph ops, and modelines
+
+### Problem
+
+`CleaveReflow` had property-based fuzzing, but other stateful commands with
+complex invariants (`Split/Join`, paragraph shifting/alignment, and modeline
+flow) still relied mostly on deterministic unit/integration tests.
+
+### Changes
+
+**New split/join fuzz suite**
+- Added `test/fuzz/split_join_fuzz.vim`
+- Added runner `test/test_split_join_fuzz.sh`
+- Invariants:
+  - split output consistency
+  - `CleaveUndo` restores original buffer text
+  - `CleaveJoin` round-trip preserves content
+  - repeated `CleaveAgain` + `CleaveJoin` does not drift
+
+**New paragraph operations fuzz suite**
+- Added `test/fuzz/paragraph_ops_fuzz.vim`
+- Added runner `test/test_paragraph_ops_fuzz.sh`
+- Invariants under random `ShiftParagraph`/`Align` sequences:
+  - paragraph signatures remain unchanged on left and right
+  - left anchors and right paragraph starts stay in sync
+  - `CleaveUndo` restores original content
+
+**New modeline fuzz suite**
+- Added `test/fuzz/modeline_fuzz.vim`
+- Added runner `test/test_modeline_fuzz.sh`
+- Invariants:
+  - BuildString/Parse consistency for cleave settings
+  - non-cleave modeline options are preserved
+  - split honors modeline-driven cleave column/gutter
+  - join in update mode keeps modeline parseable and stable
+
+**Documentation updates**
+- Expanded `README.md` testing section with the three new fuzz commands.
+
+### Validation
+
+- `test/test_split_join_fuzz.sh --seed 1111 --iterations 200`
+- `test/test_paragraph_ops_fuzz.sh --seed 2222 --iterations 200`
+- `test/test_modeline_fuzz.sh --seed 3333 --iterations 200`
+- `test/test_reflow_fuzz.sh --seed 4444 --iterations 100`
+- `vim -u NONE -es -c "source test/test_reflow.vim" -c "call RunReflowTests()" -c "qa!"`
+
+All commands above passed.
+
+## 2026-02-24: Reduced fuzz regression + right reflow separator fix
+
+### Problem
+
+After adding the fuzz harness, long-seed runs produced reproducible
+`reason=paragraph` failures in right-buffer reflow. A minimized case showed
+that reflow could consume the blank separator between adjacent paragraphs,
+merging signatures even though paragraph boundaries should remain stable.
+
+### Changes
+
+**Reduced and promoted a failing fuzz case**
+- Reduced seed `424242` / iter `97` into:
+  - `test/fixtures/regressions/reflow_paragraph_signature_seed424242_iter97_reduced.txt`
+  - `test/fixtures/regressions/reflow_paragraph_signature_seed424242_iter97_reduced.meta`
+- Regression fixture is automatically exercised by
+  `TestReflowRegressionFixtures()` in `test/test_reflow.vim`
+
+**Fixed right-buffer paragraph placement in reflow** (`autoload/cleave.vim`)
+- Updated `ReflowRightBuffer()` placement logic to enforce a minimum of one
+  blank line between consecutive paragraphs when rebuilding the right buffer
+- Replaced lookahead fit heuristics with a simpler placement rule:
+  `actual_position = max(target_line, minimum_non_overlapping_position)`
+  where minimum position includes one blank separator after prior paragraph
+
+### Validation
+
+- `test/test_reflow_fuzz.sh --replay test/fixtures/regressions/reflow_paragraph_signature_seed424242_iter97_reduced.txt --meta test/fixtures/regressions/reflow_paragraph_signature_seed424242_iter97_reduced.meta`
+- `vim -u NONE -es -c "source test/test_reflow.vim" -c "call RunReflowTests()" -c "qa!"`
+- `test/test_reflow_fuzz.sh --seed 424242 --iterations 500`
+
+All commands above passed after the fix.
+
+Note: a separate long campaign (`seed=424242`, `iterations=10000`) still
+finds additional failures (`reason=width`, iter `4785`) to investigate next.
+
+## 2026-02-24: Executable reflow spec and fuzzing workflow
+
+### Problem
+
+Reflow behavior had growing complexity (paragraph placement, justification,
+anchors, join/recleave paths), but tests were mostly hand-written examples.
+That made edge-case regressions expensive to detect and hard to reproduce.
+
+### Changes
+
+**Plan and documentation updates**
+- Added a new robustness plan item in `vim_cleave_plan.md`:
+  "Add executable spec + fuzzing loop for reflow"
+- Added a `## Testing` section to `README.md` covering:
+  - baseline reflow test command
+  - deterministic fuzz runs
+  - replaying saved failures
+  - minimizing failures into regression fixtures
+
+**Property-based fuzz harness** (`test/fuzz/reflow_fuzz.vim`)
+- Added deterministic RNG + generated two-column test cases
+- Added replay mode from saved case files (`.txt`) and metadata (`.meta`)
+- Added invariant checks across split/reflow/join/recleave flow:
+  - idempotence (`reflow` twice is stable)
+  - paragraph signature preservation
+  - width compliance (with guards for known display-width edge cases)
+  - anchor parity between right paragraph starts and left text properties
+  - join output matches expected merge math
+- Added failure artifact capture with seed/iteration context
+
+**Fuzz runner script** (`test/test_reflow_fuzz.sh`)
+- Added CLI options: `--seed`, `--iterations`, `--replay`, `--meta`
+- Added deterministic run output and replay instructions on failure
+
+**Failure reducer** (`test/fuzz/reduce_reflow_failure.sh`)
+- Added line-deletion delta reducer to minimize reproducing fuzz failures
+- Added replay-based validation inside reducer loop
+- Added `--help` handling and metadata output for reduced fixtures
+
+**Fixture structure and ignore rules**
+- Added `test/fixtures/failures/.gitkeep`
+- Added `test/fixtures/regressions/.gitkeep`
+- Updated `.gitignore` to ignore generated failure artifacts:
+  - `test/fixtures/failures/*.txt`
+  - `test/fixtures/failures/*.meta`
+
+**Regression test integration** (`test/test_reflow.vim`)
+- Added `TestReflowRegressionFixtures()`
+- Added replay helper that runs `RunReflowFuzz()` per fixture under
+  `test/fixtures/regressions/*.txt`
+- Hooked regression fixture replay into `RunReflowTests()`
+
+### Validation
+
+- `vim -u NONE -es -c "source test/test_reflow.vim" -c "call RunReflowTests()" -c "qa!"`
+- `bash test/test_reflow_simple.sh`
+- `test/test_reflow_fuzz.sh --seed 123 --iterations 200`
+
+All commands above passed during implementation.
+
 ## 2026-02-22: Unified TextChanged handler for both buffers
 
 ### Problem
