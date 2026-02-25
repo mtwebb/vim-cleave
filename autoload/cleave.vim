@@ -569,7 +569,7 @@ export def CreateBuffers(left_lines: list<string>, right_lines: list<string>, or
     execute 'setlocal foldcolumn=' .. original_foldcolumn
     # Set textwidth before filetype so ftplugin/left.vim sees correct &tw
     SetTexwidthToLongestLine()
-    setlocal filetype=left
+    setlocal filetype=markdown.left
     
     # Create right buffer
     silent execute 'hide enew'
