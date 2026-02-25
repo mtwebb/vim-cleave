@@ -469,7 +469,8 @@ def SplitBufferAtCol(bufnr: number, cleave_col: number)
             original_name = 'noname'
         endif
         var original_foldcolumn = &foldcolumn
-        var [left_bufnr, right_bufnr] = CreateBuffers(left_lines, right_lines, original_name, original_foldcolumn)
+        var original_filetype = &filetype
+        var [left_bufnr, right_bufnr] = CreateBuffers(left_lines, right_lines, original_name, original_foldcolumn, original_filetype)
         if timing
             echomsg 'Cleave timing: create_buffers ' .. reltimestr(reltime(t0))
         endif
@@ -557,7 +558,7 @@ export def SplitContent(lines: list<string>, cleave_col: number): list<list<stri
     return [left_lines, right_lines]
 enddef
 
-export def CreateBuffers(left_lines: list<string>, right_lines: list<string>, original_name: string, original_foldcolumn: number): list<number>
+export def CreateBuffers(left_lines: list<string>, right_lines: list<string>, original_name: string, original_foldcolumn: number, original_filetype: string = ''): list<number>
     # Create left buffer
     silent execute 'hide enew'
     silent execute 'file ' .. fnameescape(original_name .. '.left')
@@ -569,7 +570,8 @@ export def CreateBuffers(left_lines: list<string>, right_lines: list<string>, or
     execute 'setlocal foldcolumn=' .. original_foldcolumn
     # Set textwidth before filetype so ftplugin/left.vim sees correct &tw
     SetTexwidthToLongestLine()
-    setlocal filetype=markdown.left
+    var left_ft = empty(original_filetype) ? 'left' : original_filetype .. '.left'
+    execute 'setlocal filetype=' .. left_ft
     
     # Create right buffer
     silent execute 'hide enew'
