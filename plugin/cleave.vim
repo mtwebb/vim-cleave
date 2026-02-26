@@ -7,6 +7,7 @@ if exists('g:loaded_cleave')
 endif
 g:loaded_cleave = 1
 
+command! Cleave call cleave#AutoCleave()
 command! -nargs=? CleaveAtCursor call cleave#SplitBuffer(bufnr('%'), <f-args>)
 command! -nargs=1 CleaveAtColumn call cleave#SplitBuffer(winbufnr(0), <args>)
 command! CleaveAtColorColumn call cleave#SplitAtColorcolumn()
