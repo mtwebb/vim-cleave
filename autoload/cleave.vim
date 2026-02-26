@@ -1372,38 +1372,7 @@ export def ToggleParagraphHighlight()
     # Update the property type with new highlight
     prop_type_change(prop_type, {'highlight': new_group})
 
-    # Force immediate visual update by temporarily moving cursor in each cleave window
-    var [original_bufnr, left_bufnr, right_bufnr] = ResolveBuffers()
-    var current_winid = win_getid()
-
-    # Update left buffer windows
-    if left_bufnr != -1
-        for winid in win_findbuf(left_bufnr)
-            var saved_winid = win_getid()
-            win_gotoid(winid)
-            var saved_pos = getcurpos()
-            # Trigger text property refresh by briefly moving cursor
-            execute "normal! \<C-L>"
-            setpos('.', saved_pos)
-            win_gotoid(saved_winid)
-        endfor
-    endif
-
-    # Update right buffer windows
-    if right_bufnr != -1
-        for winid in win_findbuf(right_bufnr)
-            var saved_winid = win_getid()
-            win_gotoid(winid)
-            var saved_pos = getcurpos()
-            # Trigger text property refresh by briefly moving cursor
-            execute "normal! \<C-L>"
-            setpos('.', saved_pos)
-            win_gotoid(saved_winid)
-        endfor
-    endif
-
-    # Return to original window and force final redraw
-    win_gotoid(current_winid)
+    # Force redraw to pick up the changed text property highlight
     redraw!
 
     echomsg "Cleave: Paragraph highlight changed to " .. new_group
