@@ -332,6 +332,157 @@ def ResolveBuffers(...args: list<any>): list<number>
     endif
 enddef
 
+# ============================================================================
+# Auto-detect Cleave Column
+# ============================================================================
+
+# Find internal whitespace gaps in a line and return the virtual column
+# where right content starts after each gap. A gap is a run of spaces
+# with length >= min_gap that has non-whitespace on both sides.
+def FindGapEnds(line: string, min_gap: number): list<number>
+    var gaps: list<number> = []
+    var trimmed = substitute(line, '\s\+$', '', '')
+    if empty(trimmed)
+        return gaps
+    endif
+
+    var idx = 0
+    var str_len = strchars(trimmed)
+    var vcol = 1
+    var in_gap = false
+    var gap_len = 0
+    var has_left_text = false
+
+    while idx < str_len
+        var ch = strcharpart(trimmed, idx, 1)
+        if ch == ' '
+            if has_left_text && !in_gap
+                in_gap = true
+                gap_len = 1
+            elseif in_gap
+                gap_len += 1
+            endif
+        else
+            if in_gap && gap_len >= min_gap
+                add(gaps, vcol)
+            endif
+            in_gap = false
+            gap_len = 0
+            has_left_text = true
+        endif
+        if ch == "\t"
+            vcol += &tabstop - ((vcol - 1) % &tabstop)
+        else
+            vcol += strdisplaywidth(ch)
+        endif
+        idx += 1
+    endwhile
+
+    return gaps
+enddef
+
+# Detect the cleave column by scanning buffer content for a consistent
+# two-column gutter gap. Returns the detected column or 0 if no
+# two-column layout is found.
+def DetectGapColumn(bufnr: number): number
+    var lines = getbufline(bufnr, 1, '$')
+    var min_gap = g:cleave_gutter
+
+    # Collect right-content-start columns from all lines
+    var gap_counts: dict<number> = {}
+    for line in lines
+        var gaps = FindGapEnds(line, min_gap)
+        for gap_col in gaps
+            var key = string(gap_col)
+            gap_counts[key] = get(gap_counts, key, 0) + 1
+        endfor
+    endfor
+
+    if empty(gap_counts)
+        return 0
+    endif
+
+    # Cluster columns within ±1 tolerance and find the best cluster
+    var columns = sort(mapnew(keys(gap_counts), (_, v) => str2nr(v)), 'n')
+    var best_col = 0
+    var best_count = 0
+
+    for col in columns
+        var cluster_count = get(gap_counts, string(col), 0)
+            \ + get(gap_counts, string(col - 1), 0)
+            \ + get(gap_counts, string(col + 1), 0)
+        if cluster_count > best_count
+            best_count = cluster_count
+            best_col = col
+        elseif cluster_count == best_count && col < best_col
+            best_col = col
+        endif
+    endfor
+
+    # Require at least 2 lines to agree
+    if best_count < 2
+        return 0
+    endif
+
+    return best_col
+enddef
+
+# Compute the cleave column for a new file (no existing right content).
+# Uses textwidth if set and smaller than longest line, otherwise longest line.
+def NewFileCleaveColumn(bufnr: number): number
+    var lines = getbufline(bufnr, 1, '$')
+    var max_width = 0
+    for line in lines
+        var trimmed = substitute(line, '\s\+$', '', '')
+        var w = strdisplaywidth(trimmed)
+        if w > max_width
+            max_width = w
+        endif
+    endfor
+
+    var tw = getbufvar(bufnr, '&textwidth')
+    if tw > 0 && tw < max_width
+        max_width = tw
+    endif
+
+    return max_width + g:cleave_gutter + 1
+enddef
+
+export def AutoCleave()
+    var buf = bufnr('%')
+    if getbufvar(buf, '&modified')
+        echoerr "Cleave: Buffer has unsaved changes. Please :write before cleaving."
+        return
+    endif
+
+    # Priority 1: Modeline
+    if cleave#modeline#Mode() !=# 'ignore'
+        var parsed = cleave#modeline#Parse(buf)
+        if parsed.line > 0
+            var settings = cleave#modeline#Apply(parsed.settings)
+            if get(settings, 'cc', 0) > 0
+                SplitBuffer(buf)
+                return
+            endif
+        endif
+    endif
+
+    # Priority 2: Gap detection
+    var gap_col = DetectGapColumn(buf)
+    if gap_col > 0
+        SplitBufferAtCol(buf, gap_col)
+        return
+    endif
+
+    # Priority 3: New file fallback
+    var col = NewFileCleaveColumn(buf)
+    if col <= 1
+        echoerr "Cleave: Buffer is empty"
+        return
+    endif
+    SplitBufferAtCol(buf, col)
+enddef
+
 export def SplitBuffer(bufnr: number, ...args: list<any>)
     var opts = {}
     if len(args) > 0
