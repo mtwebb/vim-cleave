@@ -173,10 +173,8 @@ def TeardownCleave(original_bufnr: number, left_bufnr: number, right_bufnr: numb
 
     if left_win_id != -1
         win_gotoid(left_win_id)
-        execute 'buffer' original_bufnr
-    else
-        execute 'buffer' original_bufnr
     endif
+    execute 'buffer' original_bufnr
 
     if right_win_id != -1
         win_gotoid(right_win_id)
@@ -188,10 +186,6 @@ def TeardownCleave(original_bufnr: number, left_bufnr: number, right_bufnr: numb
     endif
     if bufexists(right_bufnr)
         execute 'bdelete!' right_bufnr
-    endif
-
-    if left_win_id != -1
-        win_gotoid(left_win_id)
     endif
 enddef
 
@@ -810,15 +804,13 @@ def WithDefaultReflowOptions(options: dict<any>): dict<any>
     endif
 
     var defaults = DefaultReflowOptions(width)
-    var merged = extend(defaults, options, 'force')
 
-    merged.width = width > 0 ? width : defaults.width
-    merged.mode = NormalizeReflowMode(get(merged, 'mode', ''))
-    if empty(merged.mode)
-        merged.mode = defaults.mode
+    var mode = NormalizeReflowMode(get(options, 'mode', ''))
+    if empty(mode)
+        mode = defaults.mode
     endif
 
-    var min_length = get(merged, 'hyphen_min_length',
+    var min_length = get(options, 'hyphen_min_length',
         \ defaults.hyphen_min_length)
     if type(min_length) != v:t_number
         min_length = defaults.hyphen_min_length
@@ -826,14 +818,16 @@ def WithDefaultReflowOptions(options: dict<any>): dict<any>
     if min_length < 2
         min_length = 2
     endif
-    merged.hyphen_min_length = min_length
 
-    merged.hyphenate = get(merged, 'hyphenate', defaults.hyphenate)
-    merged.dehyphenate = get(merged, 'dehyphenate', defaults.dehyphenate)
-    merged.justify_last_line = get(merged, 'justify_last_line',
-        \ defaults.justify_last_line)
-
-    return merged
+    return {
+        \ 'width': width > 0 ? width : defaults.width,
+        \ 'mode': mode,
+        \ 'hyphenate': get(options, 'hyphenate', defaults.hyphenate),
+        \ 'dehyphenate': get(options, 'dehyphenate', defaults.dehyphenate),
+        \ 'hyphen_min_length': min_length,
+        \ 'justify_last_line': get(options, 'justify_last_line',
+        \     defaults.justify_last_line),
+        \ }
 enddef
 export def ReflowBuffer(...args: list<any>)
     if len(args) < 1
@@ -1671,34 +1665,11 @@ enddef
 
 export def RestoreParagraphAlignment(right_bufnr: number, original_right_lines: list<string>, saved_para_starts: list<number>)
     var cleaned_lines = mapnew(original_right_lines, (_, v) => substitute(v, '\s\+$', '', ''))
-
     var extracted = ExtractParagraphs(cleaned_lines)
-    var paragraphs = []
-    for i in range(len(extracted))
-        var target = i < len(saved_para_starts) ? saved_para_starts[i] : -1
-        add(paragraphs, {'target_line': target, 'content': extracted[i].content})
-    endfor
+    var paragraphs = mapnew(extracted, (_, v) => v.content)
 
-    # Step 2: Build new buffer content by placing paragraphs at target positions
-    var adjusted_lines = []
-    var current_line_num = 1
-
-    for para in paragraphs
-        if para.target_line > 0
-            while current_line_num < para.target_line
-                add(adjusted_lines, '')
-                current_line_num += 1
-            endwhile
-
-            for content_line in para.content
-                add(adjusted_lines, content_line)
-                current_line_num += 1
-            endfor
-        endif
-    endfor
-
-    # Step 3: Update right buffer
-    ReplaceBufferLines(right_bufnr, adjusted_lines)
+    var placement = BuildParagraphPlacement(paragraphs, saved_para_starts)
+    ReplaceBufferLines(right_bufnr, placement.lines)
 enddef
 
 export def SyncRightParagraphs()
