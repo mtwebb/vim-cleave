@@ -10,13 +10,11 @@ TODO.md
 amp.md
 gemini.md
 ISSUES.md
-notes.md
-plan.md
-vim_cleave_plan.md
+NOTES.md
+PLAN.md
 
 # Dev artifacts
 debug_screenshots/
 *_results.txt
 test_load_plugin.vim
-test/fixtures/failures/*.txt
-test/fixtures/failures/*.meta
+test/fixtures/failures/*
