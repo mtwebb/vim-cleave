@@ -1506,10 +1506,10 @@ export def ToggleParagraphHighlight()
     # Get current highlight group
     var current_group = get(current_highlight, 'highlight', 'Normal')
 
-    # Toggle between Normal and MatchParen
+    # Toggle between Normal and CleaveAnchor
     var new_group: string
     if current_group == 'Normal'
-        new_group = 'MatchParen'
+        new_group = 'CleaveAnchor'
     else
         new_group = 'Normal'
     endif
@@ -1870,7 +1870,8 @@ export def SetTextProperties()
     # Define text property type for paragraph markers
     var prop_type = 'cleave_paragraph_start'
     try
-        prop_type_add(prop_type, {'highlight': 'MatchParen'})
+        highlight default link CleaveAnchor MatchParen
+        prop_type_add(prop_type, {'highlight': 'CleaveAnchor'})
     catch /E969:/
     endtry
 
