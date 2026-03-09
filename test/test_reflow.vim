@@ -331,6 +331,111 @@ function! TestStructureModeAutoUsesSourceFiletype()
     echo "Auto structure mode source_ft test completed"
 endfunction
 
+function! TestLeftFtpluginWithoutMarkdownSyntaxGroup()
+    new
+    setlocal filetype=left
+    let v:errmsg = ''
+
+    runtime! ftplugin/left.vim
+
+    call AssertEqual('', v:errmsg,
+        \ 'Left ftplugin works without markdown syntax groups')
+
+    bdelete!
+    echo "Left ftplugin syntax-group fallback test completed"
+endfunction
+
+function! TestMarkdownLeftLoadsMarkdownSyntax()
+    let had_syntax = exists('g:syntax_on')
+    let had_left_width = exists('g:cleave_left_width')
+    let saved_left_width = get(g:, 'cleave_left_width', 0)
+    if !had_syntax
+        syntax on
+    endif
+
+    let g:cleave_left_width = 200
+    new
+    call setline(1, [
+        \ '# heading 1',
+        \ '## heading 2',
+        \ '### heading 3',
+        \ '#### heading 4',
+        \ '##### heading 5',
+        \ '> block quote text',
+        \ '',
+        \ '```',
+        \ 'code block line',
+        \ '```'
+    \ ])
+    setlocal filetype=markdown.left
+    let v:errmsg = ''
+
+    runtime! ftplugin/left.vim
+
+    call AssertEqual('markdown', &l:syntax,
+        \ 'markdown.left buffer uses markdown syntax')
+
+    let stack_names = map(copy(synstack(1, 3)),
+        \ 'synIDattr(v:val, "name")')
+    call AssertEqual(v:true, index(stack_names, 'markdownH1') >= 0,
+        \ 'Heading keeps markdownH1 syntax group')
+    let quote_stack = map(copy(synstack(6, 3)),
+        \ 'synIDattr(v:val, "name")')
+    call AssertEqual(v:true, index(quote_stack, 'markdownBlockquote') >= 0,
+        \ 'Blockquote text keeps markdownBlockquote syntax group')
+
+    let code_stack = map(copy(synstack(9, 1)),
+        \ 'synIDattr(v:val, "name")')
+    call AssertEqual(v:true, index(code_stack, 'markdownCodeBlock') >= 0,
+        \ 'Code fence content keeps markdownCodeBlock syntax group')
+
+    if exists('*synconcealed')
+        let conceal_h1 = synconcealed(1, 1)
+        let conceal_h2 = synconcealed(2, 2)
+        let conceal_h3 = synconcealed(3, 3)
+        let conceal_h4 = synconcealed(4, 4)
+        let conceal_h5 = synconcealed(5, 5)
+
+        call AssertEqual(v:true, conceal_h1[0] == 1,
+            \ 'markdownH1Delimiter is concealed')
+        call AssertEqual(v:true, conceal_h2[0] == 1,
+            \ 'markdownH2Delimiter is concealed')
+        call AssertEqual(v:true, conceal_h3[0] == 1,
+            \ 'markdownH3Delimiter is concealed')
+        call AssertEqual(v:true, conceal_h4[0] == 1,
+            \ 'markdownH4Delimiter is concealed')
+        call AssertEqual(v:true, conceal_h5[0] == 1,
+            \ 'markdownH5Delimiter is concealed')
+
+        let conceal_quote = synconcealed(6, 1)
+        call AssertEqual(v:true, conceal_quote[0] == 1,
+            \ 'markdownBlockquote delimiter is concealed')
+        call AssertEqual(' ', conceal_quote[1],
+            \ 'markdownBlockquote delimiter uses space conceal char')
+
+        let conceal_fence_start = synconcealed(8, 1)
+        let conceal_fence_end = synconcealed(10, 1)
+        call AssertEqual(v:true, conceal_fence_start[0] == 1,
+            \ 'markdownCodeBlock start fence is concealed')
+        call AssertEqual(v:true, conceal_fence_end[0] == 1,
+            \ 'markdownCodeBlock end fence is concealed')
+    endif
+
+    call AssertEqual('', v:errmsg,
+        \ 'markdown.left syntax setup has no errors')
+
+    bdelete!
+    if had_left_width
+        let g:cleave_left_width = saved_left_width
+    else
+        unlet! g:cleave_left_width
+    endif
+    if !had_syntax
+        syntax off
+    endif
+    echo "Markdown left syntax-load test completed"
+endfunction
+
 function! TestReflowJustifyAndHyphenation()
     new
     put =['Justification should spread spaces and keep the last line ragged by',
@@ -615,6 +720,10 @@ function! RunReflowTests()
     call TestMarkdownListAnchorCount()
     echo ""
     call TestStructureModeAutoUsesSourceFiletype()
+    echo ""
+    call TestLeftFtpluginWithoutMarkdownSyntaxGroup()
+    echo ""
+    call TestMarkdownLeftLoadsMarkdownSyntax()
     echo ""
     call TestReflowJustifyAndHyphenation()
     echo ""
