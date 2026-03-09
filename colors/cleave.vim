@@ -77,6 +77,35 @@ execute "hi markdownCodeDelimiter guibg=".bg_main." guifg=".debug_red." cterm=NO
 execute "hi markdownBlockquote guibg=".bg_main." guifg=".text_main." cterm=italic"
 execute "hi markdownBlockquoteDelimiter guibg=".bg_main." guifg=".debug_red." cterm=NONE" 
 
+" Inline styles
+execute "hi markdownBold guibg=".bg_main." guifg=".text_header." cterm=bold"
+execute "hi markdownBoldDelimiter guibg=".bg_main." guifg=".debug_red." cterm=NONE"
+execute "hi markdownItalic guibg=".bg_main." guifg=".text_main." cterm=italic"
+execute "hi markdownItalicDelimiter guibg=".bg_main." guifg=".debug_red." cterm=NONE"
+execute "hi markdownBoldItalic guibg=".bg_main." guifg=".text_header." cterm=bold,italic"
+execute "hi markdownBoldItalicDelimiter guibg=".bg_main." guifg=".debug_red." cterm=NONE"
+execute "hi markdownCode guibg=".bg_lightest." guifg=".text_muted." cterm=NONE"
+execute "hi markdownStrike guibg=".bg_main." guifg=".text_muted." cterm=strikethrough"
+execute "hi markdownStrikeDelimiter guibg=".bg_main." guifg=".debug_red." cterm=NONE"
+
+" Links and URLs
+execute "hi markdownLinkText guibg=".bg_main." guifg=".accent_blue." cterm=underline"
+execute "hi markdownLinkTextDelimiter guibg=".bg_main." guifg=".debug_red." cterm=NONE"
+execute "hi markdownLinkDelimiter guibg=".bg_main." guifg=".debug_red." cterm=NONE"
+execute "hi markdownUrl guibg=".bg_main." guifg=".text_muted." cterm=underline"
+execute "hi markdownUrlDelimiter guibg=".bg_main." guifg=".debug_red." cterm=NONE"
+execute "hi markdownUrlTitle guibg=".bg_main." guifg=".text_main." cterm=italic"
+execute "hi markdownUrlTitleDelimiter guibg=".bg_main." guifg=".debug_red." cterm=NONE"
+execute "hi markdownIdDeclaration guibg=".bg_main." guifg=".accent_blue." cterm=NONE"
+execute "hi markdownId guibg=".bg_main." guifg=".accent_blue." cterm=NONE"
+execute "hi markdownIdDelimiter guibg=".bg_main." guifg=".debug_red." cterm=NONE"
+
+" Rules and misc
+execute "hi markdownRule guibg=".bg_main." guifg=".text_muted." cterm=NONE"
+execute "hi markdownOrderedListMarker guibg=".bg_main." guifg=".text_main." cterm=bold"
+execute "hi markdownFootnote guibg=".bg_main." guifg=".accent_blue." cterm=NONE"
+execute "hi markdownFootnoteDefinition guibg=".bg_main." guifg=".text_muted." cterm=italic"
+
 
 
 "hi NonText guibg=#fdfbf4 guifg=#333333 gui=NONE
