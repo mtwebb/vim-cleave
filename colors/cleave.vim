@@ -106,6 +106,22 @@ execute "hi markdownOrderedListMarker guibg=".bg_main." guifg=".text_main." cter
 execute "hi markdownFootnote guibg=".bg_main." guifg=".accent_blue." cterm=NONE"
 execute "hi markdownFootnoteDefinition guibg=".bg_main." guifg=".text_muted." cterm=italic"
 
+" fzf color integration
+let g:fzf_colors =
+\ { 'fg':      ['fg', 'Normal'],
+  \ 'bg':      ['bg', 'Normal'],
+  \ 'hl':      ['fg', 'markdownH1'],
+  \ 'fg+':     ['fg', 'markdownH2'],
+  \ 'bg+':     ['bg', 'ColorColumn'],
+  \ 'hl+':     ['fg', 'markdownH1'],
+  \ 'info':    ['fg', 'Note'],
+  \ 'border':  ['fg', 'VertSplit'],
+  \ 'prompt':  ['fg', 'markdownH1'],
+  \ 'pointer': ['fg', 'markdownH1'],
+  \ 'marker':  ['fg', 'markdownLinkText'],
+  \ 'spinner': ['fg', 'Note'],
+  \ 'header':  ['fg', 'Note'] }
+
 
 
 "hi NonText guibg=#fdfbf4 guifg=#333333 gui=NONE
