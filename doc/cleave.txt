@@ -142,7 +142,7 @@ COMMANDS                                     *cleave-commands*
     Key features:
     - Reads text property positions from the left buffer
     - Validates that there are enough properties for the paragraphs
-    - Extracts right-buffer paragraphs using simple detection
+    - Extracts right-buffer paragraph blocks using configured structure mode
     - Handles paragraph overlap conflicts by sliding paragraphs down
     - Equalizes buffer lengths (pads shorter buffer)
     - Updates text properties to reflect final positions
@@ -326,6 +326,26 @@ OPTIONS                                      *cleave-options*
     Minimum word length eligible for hyphenation.
 
     Default: `8`
+
+*g:cleave_structure_mode*
+    Controls how paragraph/block boundaries are detected for reflow,
+    alignment, anchors, and paragraph shifting.
+
+    Values:
+    - `auto`     Uses markdown-aware block detection for markdown-like
+                 filetypes and simple paragraph detection otherwise.
+                 (default)
+    - `simple`   Uses classic paragraph detection: a non-empty line that
+                 follows an empty line starts a paragraph.
+    - `markdown` Uses markdown-aware block detection globally. Treats
+                 fenced code blocks and headings as atomic blocks and
+                 detects list/blockquote blocks for reflow and alignment.
+
+    Default: `auto`
+
+    Example: >
+        g:cleave_structure_mode = 'markdown'
+<
 
 *g:cleave_justify_last_line*
     When enabled, justify the final line of each paragraph.

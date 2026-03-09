@@ -31,6 +31,10 @@ if !exists('g:cleave_debug_timing')
     g:cleave_debug_timing = 0
 endif
 
+if !exists('g:cleave_structure_mode')
+    g:cleave_structure_mode = 'auto'
+endif
+
 # ============================================================================
 # Paragraph Detection Helpers
 # ============================================================================
@@ -45,6 +49,55 @@ def IsInlineFence(line: string): bool
     return after =~# '```\s*$'
 enddef
 
+def IsMarkdownFenceStart(line: string): bool
+    return line =~# '^\s*```'
+enddef
+
+def IsMarkdownHeading(line: string): bool
+    return line =~# '^\s*#'
+enddef
+
+def IsMarkdownQuoteStart(line: string): bool
+    return line =~# '^\s*>\s*'
+enddef
+
+def IsMarkdownListStart(line: string): bool
+    return line =~# '^\s*\%(>\s*\)*\%([-*+]\|\d\+[.)]\)\s\+'
+enddef
+
+def MarkdownQuotePrefix(line: string): string
+    return matchstr(line, '^\s*\%(>\s*\)*')
+enddef
+
+def IsMarkdownLikeFiletype(filetype: string): bool
+    var ft = tolower(filetype)
+    if empty(ft)
+        return false
+    endif
+    return ft =~# 'markdown' || ft ==# 'md' ||
+        \ ft ==# 'rmd' || ft ==# 'qmd' ||
+        \ ft ==# 'quarto' || ft ==# 'pandoc'
+enddef
+
+def ResolveStructureMode(target_bufnr: number): string
+    var mode = get(g:, 'cleave_structure_mode', 'auto')
+    if mode ==# 'simple' || mode ==# 'markdown'
+        return mode
+    endif
+
+    if mode !=# 'auto'
+        return 'simple'
+    endif
+
+    var info = getbufvar(target_bufnr, 'cleave', {})
+    var source_ft = get(info, 'source_ft', '')
+    if empty(source_ft)
+        source_ft = getbufvar(target_bufnr, '&filetype')
+    endif
+
+    return IsMarkdownLikeFiletype(source_ft) ? 'markdown' : 'simple'
+enddef
+
 # Simple paragraph start: non-empty line that is first or follows an empty line
 def IsParaStart(lines: list<string>, idx: number): bool
     if trim(lines[idx]) ==# ''
@@ -53,41 +106,222 @@ def IsParaStart(lines: list<string>, idx: number): bool
     return idx == 0 || trim(lines[idx - 1]) ==# ''
 enddef
 
-# Return 1-based line numbers of paragraph starts in lines (simple detection)
-def ParaStarts(lines: list<string>): list<number>
-    var result = []
-    for i in range(len(lines))
-        if IsParaStart(lines, i)
-            add(result, i + 1)
-        endif
-    endfor
-    return result
+def ClassifySimpleBlock(content: list<string>): string
+    if empty(content)
+        return 'paragraph'
+    endif
+    if IsMarkdownFenceStart(content[0])
+        return 'fence'
+    endif
+    if len(content) == 1 && IsMarkdownHeading(content[0])
+        return 'heading'
+    endif
+    return 'paragraph'
 enddef
 
-# Extract paragraphs from lines as a list of {start: N, content: [lines]}
-# Uses simple paragraph detection (prev line empty)
-def ExtractParagraphs(lines: list<string>): list<dict<any>>
-    var paragraphs = []
-    var current_para = []
+def ExtractSimpleBlocks(lines: list<string>): list<dict<any>>
+    var blocks = []
+    var current = []
     var current_start = -1
 
     for i in range(len(lines))
         var trimmed = trim(lines[i])
         if IsParaStart(lines, i)
-            if current_start >= 0 && !empty(current_para)
-                add(paragraphs, {'start': current_start + 1, 'content': copy(current_para)})
+            if current_start >= 0 && !empty(current)
+                add(blocks, {
+                    \ 'kind': ClassifySimpleBlock(current),
+                    \ 'start': current_start + 1,
+                    \ 'content': copy(current),
+                    \ })
             endif
-            current_para = [lines[i]]
+            current = [lines[i]]
             current_start = i
         elseif current_start >= 0 && trimmed !=# ''
-            add(current_para, lines[i])
+            add(current, lines[i])
         endif
     endfor
 
-    if current_start >= 0 && !empty(current_para)
-        add(paragraphs, {'start': current_start + 1, 'content': copy(current_para)})
+    if current_start >= 0 && !empty(current)
+        add(blocks, {
+            \ 'kind': ClassifySimpleBlock(current),
+            \ 'start': current_start + 1,
+            \ 'content': copy(current),
+            \ })
     endif
-    return paragraphs
+
+    return blocks
+enddef
+
+def ExtractMarkdownListBlock(lines: list<string>, start_idx: number): list<any>
+    var content: list<string> = [lines[start_idx]]
+    var idx = start_idx + 1
+    var list_quote_prefix = MarkdownQuotePrefix(lines[start_idx])
+
+    while idx < len(lines)
+        var line = lines[idx]
+        if trim(line) ==# ''
+            break
+        endif
+        if IsMarkdownFenceStart(line) || IsMarkdownHeading(line)
+            break
+        endif
+        if IsMarkdownListStart(line)
+            break
+        endif
+        if IsMarkdownQuoteStart(line)
+            var this_quote_prefix = MarkdownQuotePrefix(line)
+            if this_quote_prefix !=# list_quote_prefix
+                break
+            endif
+        endif
+        add(content, line)
+        idx += 1
+    endwhile
+
+    return [content, idx]
+enddef
+
+def ExtractMarkdownQuoteBlock(lines: list<string>, start_idx: number): list<any>
+    var content: list<string> = []
+    var idx = start_idx
+
+    while idx < len(lines)
+        var line = lines[idx]
+        if trim(line) ==# ''
+            break
+        endif
+        if !IsMarkdownQuoteStart(line)
+            break
+        endif
+        if idx > start_idx && IsMarkdownListStart(line)
+            break
+        endif
+        add(content, line)
+        idx += 1
+    endwhile
+
+    return [content, idx]
+enddef
+
+def ExtractMarkdownBlocks(lines: list<string>): list<dict<any>>
+    var blocks = []
+    var idx = 0
+
+    while idx < len(lines)
+        var line = lines[idx]
+        if trim(line) ==# ''
+            idx += 1
+            continue
+        endif
+
+        if IsMarkdownFenceStart(line)
+            var fence_content: list<string> = [line]
+            var next_idx = idx + 1
+            if !IsInlineFence(line)
+                while next_idx < len(lines)
+                    add(fence_content, lines[next_idx])
+                    if IsMarkdownFenceStart(lines[next_idx]) &&
+                        \ !IsInlineFence(lines[next_idx])
+                        next_idx += 1
+                        break
+                    endif
+                    next_idx += 1
+                endwhile
+            endif
+            add(blocks, {
+                \ 'kind': 'fence',
+                \ 'start': idx + 1,
+                \ 'content': fence_content,
+                \ })
+            idx = next_idx
+            continue
+        endif
+
+        if IsMarkdownHeading(line)
+            add(blocks, {
+                \ 'kind': 'heading',
+                \ 'start': idx + 1,
+                \ 'content': [line],
+                \ })
+            idx += 1
+            continue
+        endif
+
+        if IsMarkdownListStart(line)
+            var list_result = ExtractMarkdownListBlock(lines, idx)
+            add(blocks, {
+                \ 'kind': 'list',
+                \ 'start': idx + 1,
+                \ 'content': list_result[0],
+                \ })
+            idx = list_result[1]
+            continue
+        endif
+
+        if IsMarkdownQuoteStart(line)
+            var quote_result = ExtractMarkdownQuoteBlock(lines, idx)
+            add(blocks, {
+                \ 'kind': 'quote',
+                \ 'start': idx + 1,
+                \ 'content': quote_result[0],
+                \ })
+            idx = quote_result[1]
+            continue
+        endif
+
+        var paragraph: list<string> = [line]
+        var next_idx = idx + 1
+        while next_idx < len(lines)
+            var next_line = lines[next_idx]
+            if trim(next_line) ==# ''
+                break
+            endif
+            if IsMarkdownFenceStart(next_line) || IsMarkdownHeading(next_line)
+                break
+            endif
+            if IsMarkdownListStart(next_line) || IsMarkdownQuoteStart(next_line)
+                break
+            endif
+            add(paragraph, next_line)
+            next_idx += 1
+        endwhile
+        add(blocks, {
+            \ 'kind': 'paragraph',
+            \ 'start': idx + 1,
+            \ 'content': paragraph,
+            \ })
+        idx = next_idx
+    endwhile
+
+    return blocks
+enddef
+
+def ExtractBlocks(lines: list<string>, mode: string): list<dict<any>>
+    if mode ==# 'markdown'
+        return ExtractMarkdownBlocks(lines)
+    endif
+    return ExtractSimpleBlocks(lines)
+enddef
+
+def BlockIsWrappable(kind: string): bool
+    return kind !=# 'fence' && kind !=# 'heading'
+enddef
+
+# Return 1-based line numbers of block starts in lines
+def ParaStarts(lines: list<string>, ...args: list<any>): list<number>
+    var target_bufnr = len(args) > 0 ? args[0] : bufnr('%')
+    var blocks = ExtractBlocks(lines, ResolveStructureMode(target_bufnr))
+    var result = []
+    for block in blocks
+        add(result, block.start)
+    endfor
+    return result
+enddef
+
+# Extract blocks from lines as {kind, start: N, content: [lines]}
+def ExtractParagraphs(lines: list<string>, ...args: list<any>): list<dict<any>>
+    var target_bufnr = len(args) > 0 ? args[0] : bufnr('%')
+    return ExtractBlocks(lines, ResolveStructureMode(target_bufnr))
 enddef
 
 def BuildParagraphPlacement(paragraphs: list<any>, target_line_numbers: list<number>): dict<any>
@@ -645,10 +879,20 @@ def SplitBufferAtCol(bufnr: number, cleave_col: number)
         endif
 
         # 6. Store cleave state on each buffer
-        var left_state = {'original': original_bufnr, 'side': 'left',
-            \ 'peer': right_bufnr, 'col': cleave_col}
-        var right_state = {'original': original_bufnr, 'side': 'right',
-            \ 'peer': left_bufnr, 'col': cleave_col}
+        var left_state = {
+            \ 'original': original_bufnr,
+            \ 'side': 'left',
+            \ 'peer': right_bufnr,
+            \ 'col': cleave_col,
+            \ 'source_ft': original_filetype,
+            \ }
+        var right_state = {
+            \ 'original': original_bufnr,
+            \ 'side': 'right',
+            \ 'peer': left_bufnr,
+            \ 'col': cleave_col,
+            \ 'source_ft': original_filetype,
+            \ }
         setbufvar(left_bufnr, 'cleave', left_state)
         setbufvar(right_bufnr, 'cleave', right_state)
 
@@ -1038,43 +1282,21 @@ export def ReflowRightBuffer(options: dict<any>, current_bufnr: number, left_buf
     var current_lines = getline(1, '$')
     var width = options.width
 
-    # Step 1: Extract paragraphs with their positions
-    var extracted = ExtractParagraphs(current_lines)
+    # Step 1: Extract blocks with their positions
+    var extracted = ExtractParagraphs(current_lines, current_bufnr)
     var para_starts = mapnew(extracted, (_, v) => v.start)
-    var paragraphs = mapnew(extracted, (_, v) => v.content)
 
-    # Step 2: Reflow each paragraph individually to new width
+    # Step 2: Reflow each wrappable block to new width
     var reflowed_paragraphs: list<list<string>> = []
-    var paragraph_index = 0
-    var inside_fence = false
-    var fence_pattern = '^\s*```'
-    for para_lines in paragraphs
+    for block in extracted
         var reflowed_para: list<string> = []
-        if !inside_fence && paragraph_index < len(para_starts)
-            var start_line = para_starts[paragraph_index]
-            if start_line > 0 && start_line <= len(current_lines)
-                var line_idx = start_line - 1
-                var line_text = current_lines[line_idx]
-                if line_text =~# fence_pattern && !IsInlineFence(line_text)
-                    inside_fence = true
-                endif
-            endif
-        endif
-
-        var is_heading = len(para_lines) == 1 && para_lines[0] =~# '^\s*#'
-        if inside_fence || is_heading
-            reflowed_para = para_lines
+        if BlockIsWrappable(get(block, 'kind', 'paragraph'))
+            reflowed_para = WrapParagraph(block.content, options)
         else
-            reflowed_para = WrapParagraph(para_lines, options)
+            reflowed_para = copy(block.content)
         endif
 
         add(reflowed_paragraphs, reflowed_para)
-        for line_text in para_lines
-            if line_text =~# fence_pattern && !IsInlineFence(line_text)
-                inside_fence = !inside_fence
-            endif
-        endfor
-        paragraph_index += 1
     endfor
 
     # Step 3: Reconstruct buffer preserving original positions when possible
@@ -1116,7 +1338,13 @@ export def ReflowRightBuffer(options: dict<any>, current_bufnr: number, left_buf
     execute 'setlocal textwidth=' .. width
 enddef
 
-def CaptureAnchors(left_lines: list<string>, para_starts: list<number>): list<string>
+def CaptureAnchors(left_lines: list<string>, para_starts: list<number>, left_bufnr: number): list<string>
+    var left_block_starts = ParaStarts(left_lines, left_bufnr)
+    var left_start_lookup = {}
+    for start in left_block_starts
+        left_start_lookup[start] = 1
+    endfor
+
     var anchors: list<string> = []
     for line_num in para_starts
         var first_word = ''
@@ -1127,7 +1355,7 @@ def CaptureAnchors(left_lines: list<string>, para_starts: list<number>): list<st
             var search_start = max([1, line_num - 2])
             var search_end = min([len(left_lines), line_num + 2])
             for search_line in range(search_start, search_end)
-                if IsParaStart(left_lines, search_line - 1)
+                if has_key(left_start_lookup, search_line)
                     first_word = matchstr(trim(left_lines[search_line - 1]), '\S\+')
                     if !empty(first_word)
                         break
@@ -1140,35 +1368,32 @@ def CaptureAnchors(left_lines: list<string>, para_starts: list<number>): list<st
     return anchors
 enddef
 
-def LocateAnchorsAfterReflow(buffer_lines: list<string>, anchors: list<string>): list<number>
+def LocateAnchorsAfterReflow(buffer_lines: list<string>, anchors: list<string>,
+    \ target_bufnr: number): list<number>
+    var starts = ParaStarts(buffer_lines, target_bufnr)
     var updated_para_starts: list<number> = []
-    var last_found_line = 0
-    var inside_fence = false
-    var fence_pattern = '^\s*```'
+    var last_start_idx = 0
+
     for i in range(len(anchors))
         var target_word = anchors[i]
         if len(target_word) > 0
             var found = false
-            var line_idx = last_found_line
-            while line_idx < len(buffer_lines)
-                var line_text = buffer_lines[line_idx]
-                if line_text =~# fence_pattern && !IsInlineFence(line_text)
-                    inside_fence = !inside_fence
-                    line_idx += 1
+            var start_idx = last_start_idx
+            while start_idx < len(starts)
+                var line_num = starts[start_idx]
+                if line_num < 1 || line_num > len(buffer_lines)
+                    start_idx += 1
                     continue
                 endif
-                if inside_fence
-                    line_idx += 1
-                    continue
-                endif
-                var first_word_in_line = matchstr(line_text, '\S\+')
+                var first_word_in_line =
+                    \ matchstr(trim(buffer_lines[line_num - 1]), '\S\+')
                 if first_word_in_line == target_word
-                    add(updated_para_starts, line_idx + 1)
-                    last_found_line = line_idx + 1
+                    add(updated_para_starts, line_num)
+                    last_start_idx = start_idx + 1
                     found = true
                     break
                 endif
-                line_idx += 1
+                start_idx += 1
             endwhile
             if !found
                 echomsg "CleaveReflow WARNING: Could not find paragraph starting with '" .. target_word .. "'"
@@ -1203,14 +1428,15 @@ export def ReflowLeftBuffer(options: dict<any>, current_bufnr: number, left_bufn
     \ right_bufnr: number)
     var right_lines = getbufline(right_bufnr, 1, '$')
     var left_lines = getbufline(left_bufnr, 1, '$')
-    var right_para_starts = ParaStarts(right_lines)
+    var right_para_starts = ParaStarts(right_lines, right_bufnr)
 
-    var anchors = CaptureAnchors(left_lines, right_para_starts)
+    var anchors = CaptureAnchors(left_lines, right_para_starts, left_bufnr)
 
     var reflowed_lines = ReflowText(getline(1, '$'), options)
     ReplaceBufferLines(bufnr('%'), reflowed_lines)
 
-    var updated_para_starts = LocateAnchorsAfterReflow(getline(1, '$'), anchors)
+    var updated_para_starts = LocateAnchorsAfterReflow(getline(1, '$'),
+        \ anchors, current_bufnr)
 
     ApplyPostReflowUi(options.width, current_bufnr,
         \ right_bufnr, right_lines, updated_para_starts)
@@ -1218,78 +1444,68 @@ export def ReflowLeftBuffer(options: dict<any>, current_bufnr: number, left_bufn
 enddef
 
 export def ReflowText(lines: list<string>, options: dict<any>): list<string>
-    var reflowed: list<string> = []
-    var current_paragraph: list<string> = []
-    var inside_fence = false
-    var fence_pattern = '^\s*```'
-
     var opts = WithDefaultReflowOptions(options)
-    var width = opts.width
+    var mode = ResolveStructureMode(bufnr('%'))
+    var blocks = ExtractBlocks(lines, mode)
+    var reflowed: list<string> = []
+    var original_consumed = 0
 
-    for line in lines
-        var trimmed = trim(line)
-
-        if line =~# fence_pattern
-            if !empty(current_paragraph)
-                var wrapped = WrapParagraph(current_paragraph, opts)
-                extend(reflowed, wrapped)
-                current_paragraph = []
-            endif
-            add(reflowed, line)
-            if !IsInlineFence(line)
-                inside_fence = !inside_fence
-            endif
-            continue
-        endif
-
-        if inside_fence
-            add(reflowed, line)
-            continue
-        endif
-
-        if line =~# '^\s*#'
-            if !empty(current_paragraph)
-                var wrapped = WrapParagraph(current_paragraph, opts)
-                extend(reflowed, wrapped)
-                current_paragraph = []
-            endif
-            add(reflowed, line)
-            continue
-        endif
-
-        if empty(trimmed)
-            # Empty line - end current paragraph
-            if !empty(current_paragraph)
-                var wrapped = WrapParagraph(current_paragraph, opts)
-                extend(reflowed, wrapped)
-                current_paragraph = []
-            endif
+    for block in blocks
+        while original_consumed < block.start - 1
             add(reflowed, '')
+            original_consumed += 1
+        endwhile
+
+        if BlockIsWrappable(get(block, 'kind', 'paragraph'))
+            extend(reflowed, WrapParagraph(block.content, opts))
         else
-            # Add to current paragraph for wrapping.
-            add(current_paragraph, line)
+            extend(reflowed, copy(block.content))
         endif
+        original_consumed = block.start + len(block.content) - 1
     endfor
 
-    # Handle final paragraph
-    if !empty(current_paragraph)
-        var wrapped = WrapParagraph(current_paragraph, opts)
-        extend(reflowed, wrapped)
-    endif
+    while original_consumed < len(lines)
+        add(reflowed, '')
+        original_consumed += 1
+    endwhile
 
     return reflowed
 enddef
 
-def ExtractIndentAndHanging(line: string): dict<string>
+def ExtractWrapPrefixes(line: string): dict<string>
     var indent = matchstr(line, '^\s*')
     var after_indent = line[len(indent) :]
-    var bullet_match = matchlist(after_indent,
-        \ '^\(\%([-*+]\|\d\+\.[)]\)\)\s\+')
-    if empty(bullet_match)
-        return {indent: indent, hanging: ''}
+    var quote_prefix = matchstr(after_indent, '^\%(>\s*\)*')
+    var after_quote = after_indent[len(quote_prefix) :]
+    var list_match = matchlist(after_quote, '^\([-*+]\|\d\+[.)]\)\s\+')
+
+    if !empty(list_match)
+        var list_prefix = list_match[0]
+        var continuation = repeat(' ', strdisplaywidth(list_prefix))
+        return {
+            \ 'first': indent .. quote_prefix .. list_prefix,
+            \ 'other': indent .. quote_prefix .. continuation,
+            \ }
     endif
-    var hanging = bullet_match[0]
-    return {indent: indent, hanging: hanging}
+
+    if !empty(quote_prefix)
+        return {
+            \ 'first': indent .. quote_prefix,
+            \ 'other': indent .. quote_prefix,
+            \ }
+    endif
+
+    return {'first': indent, 'other': indent}
+enddef
+
+def StripWrapPrefix(line: string): string
+    var trimmed = trim(line)
+    var without_list = substitute(trimmed,
+        \ '^\%(>\s*\)*\%([-*+]\|\d\+[.)]\)\s\+', '', '')
+    if without_list !=# trimmed
+        return without_list
+    endif
+    return substitute(trimmed, '^\%(>\s*\)\+', '', '')
 enddef
 
 def NormalizeWrappingText(lines: list<string>, dehyphenate: any): list<string>
@@ -1449,7 +1665,7 @@ export def GetRightBufferParagraphLines(): list<number>
         return []
     endif
 
-    return ParaStarts(getbufline(right_bufnr, 1, '$'))
+    return ParaStarts(getbufline(right_bufnr, 1, '$'), right_bufnr)
 enddef
 
 export def GetLeftBufferParagraphLines(): list<number>
@@ -1542,7 +1758,7 @@ export def PlaceRightParagraphsAtLines(target_line_numbers: list<number>): list<
     endif
 
     var current_lines = getbufline(right_bufnr, 1, '$')
-    var extracted = ExtractParagraphs(current_lines)
+    var extracted = ExtractParagraphs(current_lines, right_bufnr)
     var paragraphs = mapnew(extracted, (_, v) => v.content)
     var paragraph_starts = mapnew(extracted, (_, v) => v.start)
 
@@ -1580,7 +1796,7 @@ export def AlignRightToLeftParagraphs()
     # shifted away from their anchors, so positional correspondence with
     # the left buffer cannot be assumed.
     var right_lines = getbufline(right_bufnr, 1, '$')
-    var extracted = ExtractParagraphs(right_lines)
+    var extracted = ExtractParagraphs(right_lines, right_bufnr)
 
     if len(left_para_lines) < len(extracted)
         echomsg "Cleave: Fewer text properties (" .. len(left_para_lines) ..
@@ -1640,7 +1856,7 @@ export def ShiftParagraph(direction: string)
         return
     endif
 
-    var extracted = ExtractParagraphs(target_lines)
+    var extracted = ExtractParagraphs(target_lines, target_bufnr)
     if empty(extracted)
         echoerr "Cleave: No paragraphs found"
         return
@@ -1711,43 +1927,37 @@ export def WrapParagraph(paragraph_lines: list<string>, options: dict<any>): lis
     var normalized_lines = NormalizeWrappingText(paragraph_lines,
         \ opts.dehyphenate)
     var indent_source = get(paragraph_lines, 0, '')
-    var indent_info = ExtractIndentAndHanging(indent_source)
-    var indent = indent_info.indent
-    var hanging = indent_info.hanging
-    var follow_indent = indent
+    var prefixes = ExtractWrapPrefixes(indent_source)
     var cleaned_lines = []
 
-    for idx in range(1, len(paragraph_lines) - 1)
-        var candidate = paragraph_lines[idx]
-        if !empty(trim(candidate))
-            follow_indent = matchstr(candidate, '^\s*')
-            break
-        endif
-    endfor
+    if prefixes.first ==# prefixes.other
+        for idx in range(1, len(paragraph_lines) - 1)
+            var candidate = paragraph_lines[idx]
+            if !empty(trim(candidate))
+                prefixes.other = matchstr(candidate, '^\s*')
+                break
+            endif
+        endfor
+    endif
 
     for line in normalized_lines
-        var trimmed = trim(line)
-        if !empty(hanging) && stridx(trimmed, hanging) == 0
-            trimmed = trim(trimmed[len(hanging) :])
+        var stripped = StripWrapPrefix(line)
+        if !empty(stripped)
+            add(cleaned_lines, stripped)
         endif
-        add(cleaned_lines, trimmed)
     endfor
 
     # Join paragraph into single string
     var text = join(cleaned_lines, ' ')
+    if empty(trim(text))
+        return [prefixes.first]
+    endif
+
     var words = split(text, '\s\+')
     var wrapped_content = []
     var current_line = ''
-    var prefix_first: string
-    var prefix_other: string
-    if empty(hanging)
-        prefix_first = indent
-        prefix_other = follow_indent
-    else
-        var hanging_pad = repeat(' ', strdisplaywidth(hanging))
-        prefix_first = indent .. hanging
-        prefix_other = indent .. hanging_pad
-    endif
+    var prefix_first = prefixes.first
+    var prefix_other = prefixes.other
     var prefix_first_width = strdisplaywidth(prefix_first)
     var prefix_other_width = strdisplaywidth(prefix_other)
     var available_width_first = width - prefix_first_width
@@ -1816,7 +2026,7 @@ enddef
 
 export def RestoreParagraphAlignment(right_bufnr: number, original_right_lines: list<string>, saved_para_starts: list<number>)
     var cleaned_lines = mapnew(original_right_lines, (_, v) => substitute(v, '\s\+$', '', ''))
-    var extracted = ExtractParagraphs(cleaned_lines)
+    var extracted = ExtractParagraphs(cleaned_lines, right_bufnr)
     var paragraphs = mapnew(extracted, (_, v) => v.content)
 
     var placement = BuildParagraphPlacement(paragraphs, saved_para_starts)
@@ -1880,7 +2090,7 @@ export def SetTextProperties()
 
     var right_lines = getbufline(right_bufnr, 1, '$')
     var left_lines = getbufline(left_bufnr, 1, '$')
-    var right_para_starts = ParaStarts(right_lines)
+    var right_para_starts = ParaStarts(right_lines, right_bufnr)
 
     # Pad left buffer if right paragraphs extend beyond it
     if !empty(right_para_starts)
@@ -1940,7 +2150,7 @@ export def OnTextChanged()
     var prop_type = 'cleave_paragraph_start'
     var props = prop_list(1, {'bufnr': left_bufnr, 'types': [prop_type], 'end_lnum': -1})
     var right_lines = getbufline(right_bufnr, 1, '$')
-    var para_starts = ParaStarts(right_lines)
+    var para_starts = ParaStarts(right_lines, right_bufnr)
 
     var prop_count = len(props)
     var para_count = len(para_starts)
@@ -2028,7 +2238,7 @@ export def DebugParagraphs(...args: list<any>)
         \ : []
     var left_lines = getbufline(left_bufnr, 1, '$')
     var right_lines = getbufline(right_bufnr, 1, '$')
-    var para_starts = ParaStarts(right_lines)
+    var para_starts = ParaStarts(right_lines, right_bufnr)
 
     # Build lookup dicts keyed by line number
     var prop_by_line = {}

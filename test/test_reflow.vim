@@ -161,6 +161,176 @@ function! TestReflowFencedBlocks()
     echo "Fenced reflow test completed"
 endfunction
 
+function! TestMarkdownQuoteListReflow()
+    let saved_structure_mode = get(g:, 'cleave_structure_mode', 'auto')
+    let g:cleave_structure_mode = 'markdown'
+
+    new
+    put =['left', 'left', 'left', 'left']
+    1delete
+    setlocal nomodified
+
+    call cursor(1, 5)
+    CleaveAtCursor
+    wincmd l
+
+    call setline(1, [
+        \ '> - This is a long quoted list item that should wrap and keep marker integrity.',
+        \ '>   Additional text on the same quoted list item.',
+        \ '',
+        \ '> - Second quoted list item should remain a separate block.'
+    \ ])
+
+    CleaveReflow 28
+    let lines = getline(1, '$')
+
+    let marker_count = 0
+    let continuation_count = 0
+    let in_first_item = v:true
+    for line in lines
+        if empty(trim(line))
+            let in_first_item = v:false
+            continue
+        endif
+        call AssertEqual(v:true, line =~# '^> ', 'Quoted lines keep > prefix')
+        if line =~# '^> - '
+            let marker_count += 1
+        elseif in_first_item && line =~# '^>   '
+            let continuation_count += 1
+        endif
+    endfor
+
+    call AssertEqual(2, marker_count, 'Quoted list keeps item boundaries')
+    call AssertEqual(v:true, continuation_count > 0,
+        \ 'Quoted list keeps hanging indent')
+
+    call cleave#UndoCleave()
+    bdelete!
+    let g:cleave_structure_mode = saved_structure_mode
+    echo "Markdown quote/list reflow test completed"
+endfunction
+
+function! TestMarkdownHeadingAndFenceAtomic()
+    let saved_structure_mode = get(g:, 'cleave_structure_mode', 'auto')
+    let g:cleave_structure_mode = 'markdown'
+
+    new
+    put =['left', 'left', 'left', 'left']
+    1delete
+    setlocal nomodified
+
+    call cursor(1, 5)
+    CleaveAtCursor
+    wincmd l
+
+    let heading = '# Heading should remain one line even after reflow'
+    let code = 'print("do not wrap this code fence content")'
+    call setline(1, [
+        \ heading,
+        \ '',
+        \ '```',
+        \ code,
+        \ '```',
+        \ '',
+        \ 'Paragraph after fence should wrap into multiple lines for verification.'
+    \ ])
+
+    CleaveReflow 24
+    let lines = getline(1, '$')
+    call AssertEqual(v:true, index(lines, heading) >= 0,
+        \ 'Heading line preserved exactly')
+    call AssertEqual(v:true, index(lines, code) >= 0,
+        \ 'Fence content preserved exactly')
+
+    call cleave#UndoCleave()
+    bdelete!
+    let g:cleave_structure_mode = saved_structure_mode
+    echo "Markdown heading/fence atomic test completed"
+endfunction
+
+function! TestMarkdownListAnchorCount()
+    if !has('textprop')
+        echomsg 'Skipping markdown anchor count test: text properties unavailable'
+        return
+    endif
+
+    let saved_structure_mode = get(g:, 'cleave_structure_mode', 'auto')
+    let g:cleave_structure_mode = 'markdown'
+
+    new
+    put =['left', 'left', 'left', 'left']
+    1delete
+    setlocal nomodified
+
+    call cursor(1, 5)
+    CleaveAtCursor
+    wincmd l
+
+    call setline(1, [
+        \ '- First list item should anchor independently.',
+        \ '- Second list item should also have an anchor.'
+    \ ])
+    call cleave#SetTextProperties()
+
+    wincmd h
+    let props = prop_list(1, {
+        \ 'bufnr': bufnr('%'),
+        \ 'types': ['cleave_paragraph_start'],
+        \ 'end_lnum': -1
+    \ })
+    call AssertEqual(2, len(props),
+        \ 'Markdown list items map to distinct anchors')
+
+    call cleave#UndoCleave()
+    bdelete!
+    let g:cleave_structure_mode = saved_structure_mode
+    echo "Markdown list anchor count test completed"
+endfunction
+
+function! TestStructureModeAutoUsesSourceFiletype()
+    if !has('textprop')
+        echomsg 'Skipping auto structure mode test: text properties unavailable'
+        return
+    endif
+
+    let saved_structure_mode = get(g:, 'cleave_structure_mode', 'auto')
+    let g:cleave_structure_mode = 'auto'
+
+    new
+    setlocal filetype=markdown
+    put =['left', 'left', 'left', 'left']
+    1delete
+    setlocal nomodified
+
+    call cursor(1, 5)
+    CleaveAtCursor
+    wincmd l
+
+    call setline(1, [
+        \ '- First markdown list item in right buffer.',
+        \ '- Second markdown list item in right buffer.'
+    \ ])
+    call cleave#SetTextProperties()
+
+    wincmd h
+    let info = getbufvar(bufnr('%'), 'cleave', {})
+    call AssertEqual('markdown', get(info, 'source_ft', ''),
+        \ 'Auto mode stores markdown source_ft')
+
+    let props = prop_list(1, {
+        \ 'bufnr': bufnr('%'),
+        \ 'types': ['cleave_paragraph_start'],
+        \ 'end_lnum': -1
+    \ })
+    call AssertEqual(2, len(props),
+        \ 'Auto mode treats markdown list items as separate anchors')
+
+    call cleave#UndoCleave()
+    bdelete!
+    let g:cleave_structure_mode = saved_structure_mode
+    echo "Auto structure mode source_ft test completed"
+endfunction
+
 function! TestReflowJustifyAndHyphenation()
     new
     put =['Justification should spread spaces and keep the last line ragged by',
@@ -437,6 +607,14 @@ function! RunReflowTests()
     call TestReflowEdgeCases()
     echo ""
     call TestReflowFencedBlocks()
+    echo ""
+    call TestMarkdownQuoteListReflow()
+    echo ""
+    call TestMarkdownHeadingAndFenceAtomic()
+    echo ""
+    call TestMarkdownListAnchorCount()
+    echo ""
+    call TestStructureModeAutoUsesSourceFiletype()
     echo ""
     call TestReflowJustifyAndHyphenation()
     echo ""
