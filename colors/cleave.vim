@@ -26,10 +26,12 @@ set termguicolors
 " Theme Colors
 let bg_lightest = "#faf9f6"
 let bg_main     = "#f0eee7"
+let bg_section  = "#e8e5de"
 let text_header = "#2c2b26"
 let text_main   = "#5d5b4f"
 let text_muted  = "#7b796a"
 let accent_blue = "#4592cc"
+let accent_red  = "#a05050"
 
 
 let debug_red   = "#ff0000"
@@ -106,14 +108,36 @@ execute "hi markdownOrderedListMarker guibg=".bg_main." guifg=".text_main." cter
 execute "hi markdownFootnote guibg=".bg_main." guifg=".accent_blue." cterm=NONE"
 execute "hi markdownFootnoteDefinition guibg=".bg_main." guifg=".text_muted." cterm=italic"
 
+" Terminal ANSI palette (controls rg/bat colors in fzf terminal buffer)
+let g:terminal_ansi_colors = [
+    \ text_header,
+    \ accent_red,
+    \ '#6a8a50',
+    \ '#8a7a40',
+    \ accent_blue,
+    \ text_main,
+    \ text_main,
+    \ bg_lightest,
+    \ text_muted,
+    \ accent_red,
+    \ '#6a8a50',
+    \ '#8a7a40',
+    \ accent_blue,
+    \ text_main,
+    \ text_main,
+    \ bg_lightest,
+    \ ]
+
 " fzf color integration
+execute "hi FzfNormal guibg=".bg_section." guifg=".text_muted." cterm=NONE"
+execute "hi FzfMatch guibg=".bg_section." guifg=".accent_red." cterm=NONE"
 let g:fzf_colors =
-\ { 'fg':      ['fg', 'Normal'],
-  \ 'bg':      ['bg', 'Normal'],
-  \ 'hl':      ['fg', 'markdownH1'],
+\ { 'fg':      ['fg', 'FzfNormal'],
+  \ 'bg':      ['bg', 'FzfNormal'],
+  \ 'hl':      ['fg', 'FzfMatch'],
   \ 'fg+':     ['fg', 'markdownH2'],
   \ 'bg+':     ['bg', 'ColorColumn'],
-  \ 'hl+':     ['fg', 'markdownH1'],
+  \ 'hl+':     ['fg', 'FzfMatch'],
   \ 'info':    ['fg', 'Note'],
   \ 'border':  ['fg', 'VertSplit'],
   \ 'prompt':  ['fg', 'markdownH1'],
@@ -122,7 +146,12 @@ let g:fzf_colors =
   \ 'spinner': ['fg', 'Note'],
   \ 'header':  ['fg', 'Note'] }
 
-
+" Notational Velocity integration
+let g:nv_use_short_pathnames = 0
+autocmd User NVEnter set laststatus=0
+autocmd User NVLeave set laststatus=2
+execute "autocmd User NVEnter hi StatusLine guibg=".bg_section." guifg=".text_muted
+execute "autocmd User NVLeave hi StatusLine guibg=".bg_lightest." guifg=".accent_blue." cterm=bold,reverse"
 
 "hi NonText guibg=#fdfbf4 guifg=#333333 gui=NONE
 "hi Comment guibg=#fdfbf4 guifg=#81b7f2 gui=NONE
