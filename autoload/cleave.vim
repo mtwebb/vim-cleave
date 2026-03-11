@@ -2062,6 +2062,26 @@ export def SyncLeftParagraphs()
     SetTextProperties()
 enddef
 
+# Return the byte length of str capped to max_width display columns.
+# For ASCII text the full word is almost always within the cap.
+# For CJK (no spaces) this trims the run to a few characters.
+def AnchorByteLen(str: string, max_width: number): number
+    var total = len(str)
+    if strdisplaywidth(str) <= max_width
+        return total
+    endif
+    var width = 0
+    var char_count = strchars(str)
+    for i in range(char_count)
+        var ch = strcharpart(str, i, 1)
+        width += strdisplaywidth(ch)
+        if width > max_width
+            return byteidx(str, i)
+        endif
+    endfor
+    return total
+enddef
+
 export def SetTextProperties()
     # Get buffer numbers using helper function
     var [original_bufnr, left_bufnr, right_bufnr] = ResolveBuffers()
@@ -2076,6 +2096,11 @@ export def SetTextProperties()
         echomsg "Cleave: Text properties not supported in this Vim version"
         return
     endif
+
+    # Max display width for anchor text properties.  English words
+    # are almost always shorter than this so they stay intact; CJK
+    # runs (which contain no spaces) get trimmed to a few characters.
+    var max_anchor_width = 12
 
     # Define text property type for paragraph markers
     var prop_type = 'cleave_paragraph_start'
@@ -2110,7 +2135,7 @@ export def SetTextProperties()
             if match_data[1] >= 0
                 var first_word = match_data[0]
                 var start_col = match_data[1] + 1
-                var length = match_data[2] - match_data[1]
+                var length = AnchorByteLen(first_word, max_anchor_width)
                 if !empty(first_word) && length > 0
                     prop_add(line_num, start_col, {
                         \ 'type': prop_type,
@@ -2199,7 +2224,7 @@ export def OnTextChanged()
                     if match_data[1] >= 0
                         prop_add(target_lnum, match_data[1] + 1, {
                             \ 'type': prop_type,
-                            \ 'length': match_data[2] - match_data[1],
+                            \ 'length': AnchorByteLen(match_data[0], 12),
                             \ 'bufnr': left_bufnr
                             \ })
                     endif
