@@ -1,8 +1,10 @@
 :CleaveAgain	cleave.txt	/*:CleaveAgain*
 :CleaveAlign	cleave.txt	/*:CleaveAlign*
+:CleaveAtColorColumn	cleave.txt	/*:CleaveAtColorColumn*
 :CleaveAtCursor	cleave.txt	/*:CleaveAtCursor*
 :CleaveDebug	cleave.txt	/*:CleaveDebug*
 :CleaveJoin	cleave.txt	/*:CleaveJoin*
+:CleaveJump	cleave.txt	/*:CleaveJump*
 :CleaveJustifyToggle	cleave.txt	/*:CleaveJustifyToggle*
 :CleaveSetProps	cleave.txt	/*:CleaveSetProps*
 :CleaveShiftParagraphDown	cleave.txt	/*:CleaveShiftParagraphDown*
@@ -11,12 +13,17 @@
 :CleaveUndo	cleave.txt	/*:CleaveUndo*
 cleave-again	cleave.txt	/*cleave-again*
 cleave-align	cleave.txt	/*cleave-align*
-cleave-commands	cleave.txt	/*cleave-commands*
 cleave-auto-sync	cleave.txt	/*cleave-auto-sync*
+cleave-commands	cleave.txt	/*cleave-commands*
 cleave-contents	cleave.txt	/*cleave-contents*
 cleave-debug	cleave.txt	/*cleave-debug*
 cleave-examples	cleave.txt	/*cleave-examples*
 cleave-introduction	cleave.txt	/*cleave-introduction*
+cleave-jump	cleave.txt	/*cleave-jump*
+cleave-modeline-behavior	cleave.txt	/*cleave-modeline-behavior*
+cleave-modeline-heuristics	cleave.txt	/*cleave-modeline-heuristics*
+cleave-modeline-settings	cleave.txt	/*cleave-modeline-settings*
+cleave-modelines	cleave.txt	/*cleave-modelines*
 cleave-options	cleave.txt	/*cleave-options*
 cleave-reflow	cleave.txt	/*cleave-reflow*
 cleave-requirements	cleave.txt	/*cleave-requirements*
@@ -30,4 +37,6 @@ g:cleave_gutter	cleave.txt	/*g:cleave_gutter*
 g:cleave_hyphen_min_length	cleave.txt	/*g:cleave_hyphen_min_length*
 g:cleave_hyphenate	cleave.txt	/*g:cleave_hyphenate*
 g:cleave_justify_last_line	cleave.txt	/*g:cleave_justify_last_line*
+g:cleave_modeline	cleave.txt	/*g:cleave_modeline*
 g:cleave_reflow_mode	cleave.txt	/*g:cleave_reflow_mode*
+g:cleave_structure_mode	cleave.txt	/*g:cleave_structure_mode*

@@ -438,17 +438,14 @@ endfunction
 
 function! TestReflowJustifyAndHyphenation()
     new
-    put =['Justification should spread spaces and keep the last line ragged by',
-        \ 'default.',
+    put =['Left col  Justification should spread spaces and keep the last line ragged by default in this paragraph.',
         \ '',
-        \ 'Hyphenated text should be rejoined when reflowing to a new width.',
-        \ 'This line has a hyphenated word split as hy-',
-        \ 'phenation for testing.']
+        \ 'Left col  Hyphenated text should be rejoined when reflowing to a new width and this line has a hyphenated word split as hy-',
+        \ 'Left col  phenation for testing purposes here.']
     1delete
     setlocal nomodified
 
-    call cursor(1, 20)
-    CleaveAtCursor
+    CleaveAtColumn 10
     wincmd l
 
     let b:cleave_reflow_mode = 'justify'
@@ -505,8 +502,7 @@ function! TestRecleaveLast()
     1delete
     setlocal nomodified
 
-    call cursor(1, 15)
-    CleaveAtCursor
+    CleaveAtColumn 15
     CleaveUndo
     file recleave_test.txt
 

@@ -407,11 +407,13 @@ def TeardownCleave(original_bufnr: number, left_bufnr: number, right_bufnr: numb
 
     if left_win_id != -1
         win_gotoid(left_win_id)
+        setlocal noscrollbind
     endif
     execute 'buffer' original_bufnr
 
     if right_win_id != -1
         win_gotoid(right_win_id)
+        setlocal noscrollbind
         close
     endif
 
@@ -620,7 +622,7 @@ enddef
 # two-column layout is found.
 def DetectGapColumn(bufnr: number): number
     var lines = getbufline(bufnr, 1, '$')
-    var min_gap = g:cleave_gutter
+    var min_gap = max([1, g:cleave_gutter])
 
     # Collect right-content-start columns from all lines
     var gap_counts: dict<number> = {}
@@ -679,7 +681,7 @@ def NewFileCleaveColumn(bufnr: number): number
         max_width = tw
     endif
 
-    return max_width + g:cleave_gutter + 1
+    return max_width + max([1, g:cleave_gutter]) + 1
 enddef
 
 export def AutoCleave()
@@ -979,13 +981,15 @@ export def CreateBuffers(left_lines: list<string>, right_lines: list<string>, or
 
     # Update paragraph anchors on InsertLeave in either buffer
     augroup CleaveInsertLeave
-        execute 'autocmd! InsertLeave <buffer=' .. right_bufnr .. '> call cleave#SyncRightParagraphs()'
-        execute 'autocmd! InsertLeave <buffer=' .. left_bufnr .. '> call cleave#SyncLeftParagraphs()'
+        autocmd!
+        execute 'autocmd InsertLeave <buffer=' .. right_bufnr .. '> call cleave#SyncRightParagraphs()'
+        execute 'autocmd InsertLeave <buffer=' .. left_bufnr .. '> call cleave#SyncLeftParagraphs()'
     augroup END
 
     # Detect text changes in normal mode (both buffers)
     augroup CleaveTextChanged
-        execute 'autocmd! TextChanged <buffer=' .. right_bufnr .. '> call cleave#OnTextChanged()'
+        autocmd!
+        execute 'autocmd TextChanged <buffer=' .. right_bufnr .. '> call cleave#OnTextChanged()'
         execute 'autocmd TextChanged <buffer=' .. left_bufnr .. '> call cleave#OnTextChanged()'
     augroup END
 
@@ -1642,7 +1646,7 @@ export def SetTexwidthToLongestLine(): number
     var max_length = 0
     var line_count = line('$')
 
-    for line_num in range(1, line_count)
+    for line_num in range(1, line_count + 1)
         var line_text = getline(line_num)
         # Remove trailing whitespace before calculating display width
         var trimmed_line = substitute(line_text, '\s\+$', '', '')
