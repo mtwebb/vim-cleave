@@ -1,22 +1,23 @@
+vim9script
+
 if !exists('g:cleave_left_width')
-    let g:cleave_left_width = &tw+&wrapmargin
+    g:cleave_left_width = &tw + &wrapmargin
 endif
 
 if &l:filetype =~# '\.left$'
-    let base_ft = substitute(&l:filetype, '\.left$', '', '')
+    var base_ft = substitute(&l:filetype, '\.left$', '', '')
     if !empty(base_ft) && &l:syntax ==# &l:filetype
-        execute 'setlocal syntax=' . base_ft
+        execute 'setlocal syntax=' .. base_ft
     endif
 endif
 
 execute printf('syntax match Note ''\%%>%dv.\+''', g:cleave_left_width)
 hi link Note Identifier
 
-" Markdown specific niceties 
-" syntax match markdownCodeFence /```/ conceal
+# Markdown specific niceties
 if &l:filetype =~# '\<markdown\>'
-    " Left-side fragments are often invalid markdown; suppress markdownError
-    " noise so headings/lists don't render as errors after splitting.
+    # Left-side fragments are often invalid markdown; suppress markdownError
+    # noise so headings/lists don't render as errors after splitting.
     if hlexists('markdownError')
         syntax clear markdownError
     endif
@@ -92,6 +93,6 @@ if &l:filetype =~# '\<markdown\>'
     highlight default link markdownBlockquote Comment
 endif
 syntax match Modeline /^vim: .*$/
-"complete hide and only display when on line in insert mode
+# complete hide and only display when on line in insert mode
 setlocal conceallevel=2
 setlocal concealcursor=n
