@@ -1410,7 +1410,8 @@ enddef
 def ApplyPostReflowUi(new_width: number, current_bufnr: number, right_bufnr: number, right_lines: list<string>, updated_para_starts: list<number>)
     RestoreParagraphAlignment(right_bufnr, right_lines, updated_para_starts)
 
-    var new_cleave_col = new_width + g:cleave_gutter + 1
+    var gutter = max([1, g:cleave_gutter])
+    var new_cleave_col = new_width + gutter + 1
     var left_info = getbufvar(current_bufnr, 'cleave', {})
     var right_info = getbufvar(right_bufnr, 'cleave', {})
     if !empty(left_info)
@@ -1422,7 +1423,8 @@ def ApplyPostReflowUi(new_width: number, current_bufnr: number, right_bufnr: num
 
     var left_winid = get(win_findbuf(current_bufnr), 0, -1)
     var original_foldcolumn = left_winid != -1 ? getwinvar(left_winid, '&foldcolumn') : 0
-    execute 'vertical resize ' .. (new_width + original_foldcolumn + g:cleave_gutter)
+    # Match SetupWindows formula: cleave_col - 2 + foldcolumn
+    execute 'vertical resize ' .. (new_cleave_col - 2 + original_foldcolumn)
     execute 'setlocal textwidth=' .. new_width
 
     SetTextProperties()
@@ -1646,7 +1648,7 @@ export def SetTexwidthToLongestLine(): number
     var max_length = 0
     var line_count = line('$')
 
-    for line_num in range(1, line_count + 1)
+    for line_num in range(1, line_count)
         var line_text = getline(line_num)
         # Remove trailing whitespace before calculating display width
         var trimmed_line = substitute(line_text, '\s\+$', '', '')

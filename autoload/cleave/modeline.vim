@@ -93,7 +93,7 @@ export def Infer(bufnr: number): dict<any>
     if buf_cc !=# '' && buf_cc =~# '^\d\+$'
         settings.cc = str2nr(buf_cc)
     elseif settings.tw > 0
-        settings.cc = settings.tw + settings.wm
+        settings.cc = settings.tw + settings.wm + 1
     else
         settings.cc = 80
     endif
