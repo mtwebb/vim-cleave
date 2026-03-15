@@ -697,7 +697,7 @@ export def AutoCleave()
         if parsed.line > 0
             var settings = cleave#modeline#Apply(parsed.settings)
             if get(settings, 'cc', 0) > 0
-                SplitBuffer(buf)
+                SplitBuffer(buf, settings.cc)
                 return
             endif
         endif
@@ -762,9 +762,6 @@ export def SplitBuffer(bufnr: number, ...args: list<any>)
     if len(args) > 0
         # Parameter is interpreted as virtual column position
         cleave_col = args[0]
-    elseif !empty(modeline_settings) && get(modeline_settings, 'cc', 0) > 0
-        # Use cc from modeline
-        cleave_col = modeline_settings.cc
     else
         # Use virtual column position of cursor
         cleave_col = virtcol('.')
@@ -1103,13 +1100,16 @@ export def JoinBuffers()
     if empty(ml_settings)
         ml_settings = {}
     endif
-    ml_settings.cc = cleave_col
-    ml_settings.tw = getbufvar(left_bufnr, '&textwidth', 0)
     var left_winid = get(win_findbuf(left_bufnr), 0, -1)
+    ml_settings.tw = getbufvar(left_bufnr, '&textwidth', 0)
     ml_settings.fdc = left_winid != -1
         \ ? getwinvar(win_id2win(left_winid), '&foldcolumn', 0)
         \ : getbufvar(left_bufnr, '&foldcolumn', 0)
+    if ml_settings.tw > 0 && cleave_col > ml_settings.tw
+        g:cleave_gutter = cleave_col - ml_settings.tw - 1
+    endif
     ml_settings.wm = g:cleave_gutter
+    ml_settings.cc = cleave_col
     var ve_val = getbufvar(right_bufnr, '&virtualedit', '')
     ml_settings.ve = !empty(ve_val) ? ve_val : 'all'
 

@@ -51,7 +51,9 @@ Plugin 'mtwebb/vim-cleave'
 ### Commands
 
 #### `:CleaveAtCursor`
-Splits the current buffer at the cursor position. Creates two new buffers:
+Splits the current buffer at the cursor's virtual column position (`virtcol('.')`).
+Always uses the cursor position, even when a modeline with a `cc` value is present.
+Creates two new buffers:
 - Left buffer: content from start of each line to cursor column
 - Right buffer: content from cursor column to end of each line
 
@@ -146,6 +148,10 @@ Prints left-buffer text properties and right-buffer paragraph starts for debuggi
 #### `g:cleave_gutter`
 Sets the number of spaces between the left and right content when joining buffers. This affects the spacing calculation during `:CleaveJoin` operations.
 
+During `:CleaveJoin`, the gutter is recalculated from the actual buffer layout:
+`gutter = cleave_col - textwidth - 1` (when textwidth > 0 and cleave_col > textwidth).
+The recalculated value is written to the modeline as `wm`.
+
 **Default:** `3`
 
 **Example:**
@@ -189,6 +195,10 @@ Controls how vim-cleave interacts with modelines in files. Modelines allow cleav
 - `read` — Read modeline on cleave start but never write it back (default)
 - `update` — Read modeline on cleave start AND write it back on `:CleaveJoin`
 - `ignore` — Skip modeline processing entirely
+
+The `:Cleave` command uses the modeline `cc` value as the cleave column.
+`:CleaveAtCursor` always uses the cursor's virtual column position, regardless
+of modeline `cc`.
 
 **Default:** `read`
 
