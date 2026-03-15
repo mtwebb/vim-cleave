@@ -108,6 +108,8 @@ execute "hi markdownOrderedListMarker guibg=".bg_main." guifg=".text_main." cter
 execute "hi markdownFootnote guibg=".bg_main." guifg=".accent_blue." cterm=NONE"
 execute "hi markdownFootnoteDefinition guibg=".bg_main." guifg=".text_muted." cterm=italic"
 
+execute "hi Statement guibg=".bg_main." guifg=".text_muted." cterm=italic"
+
 " Terminal ANSI palette (controls rg/bat colors in fzf terminal buffer)
 let g:terminal_ansi_colors = [
     \ text_header,
