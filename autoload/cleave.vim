@@ -402,17 +402,39 @@ enddef
 # Shared teardown for undo_cleave and join_buffers: close windows, delete
 # temp buffers, clear state
 def TeardownCleave(original_bufnr: number, left_bufnr: number, right_bufnr: number)
+    # Clean up text properties before deleting buffers
+    if has('textprop') && bufexists(left_bufnr)
+        prop_remove({'type': 'cleave_paragraph_start', 'bufnr': left_bufnr, 'all': 1})
+    endif
+
+    # Clear cleave autocmd groups
+    augroup CleaveInsertLeave
+        autocmd!
+    augroup END
+    augroup CleaveTextChanged
+        autocmd!
+    augroup END
+    augroup CleaveCleanup
+        autocmd!
+    augroup END
+
     var left_win_id = get(win_findbuf(left_bufnr), 0, -1)
     var right_win_id = get(win_findbuf(right_bufnr), 0, -1)
 
     if left_win_id != -1
-        win_gotoid(left_win_id)
+        if !win_gotoid(left_win_id)
+            echoerr "Cleave: Left window no longer exists."
+            return
+        endif
         setlocal noscrollbind
     endif
     execute 'buffer' original_bufnr
 
     if right_win_id != -1
-        win_gotoid(right_win_id)
+        if !win_gotoid(right_win_id)
+            echoerr "Cleave: Right window no longer exists."
+            return
+        endif
         setlocal noscrollbind
         close
     endif
@@ -422,6 +444,14 @@ def TeardownCleave(original_bufnr: number, left_bufnr: number, right_bufnr: numb
     endif
     if bufexists(right_bufnr)
         execute 'bdelete!' right_bufnr
+    endif
+
+    # Delete the prop type after buffers are gone
+    if has('textprop')
+        try
+            prop_type_delete('cleave_paragraph_start')
+        catch
+        endtry
     endif
 enddef
 
@@ -815,6 +845,12 @@ def SplitBufferAtCol(bufnr: number, cleave_col: number)
         echoerr "Cleave: Cannot split at the first column."
         return
     endif
+    # Prevent double-cleave: reject if already in a cleave session
+    var info = getbufvar(bufnr, 'cleave', {})
+    if !empty(info)
+        echoerr "Cleave: Already in a cleave session. Use :CleaveUndo or :CleaveJoin first."
+        return
+    endif
     var saved_hidden = &hidden
     set hidden
     try
@@ -978,23 +1014,36 @@ export def CreateBuffers(left_lines: list<string>, right_lines: list<string>, or
 
     # Update paragraph anchors on InsertLeave in either buffer
     augroup CleaveInsertLeave
-        autocmd!
+        execute 'autocmd! InsertLeave <buffer=' .. right_bufnr .. '>'
+        execute 'autocmd! InsertLeave <buffer=' .. left_bufnr .. '>'
         execute 'autocmd InsertLeave <buffer=' .. right_bufnr .. '> call cleave#SyncRightParagraphs()'
         execute 'autocmd InsertLeave <buffer=' .. left_bufnr .. '> call cleave#SyncLeftParagraphs()'
     augroup END
 
     # Detect text changes in normal mode (both buffers)
     augroup CleaveTextChanged
-        autocmd!
+        execute 'autocmd! TextChanged <buffer=' .. right_bufnr .. '>'
+        execute 'autocmd! TextChanged <buffer=' .. left_bufnr .. '>'
         execute 'autocmd TextChanged <buffer=' .. right_bufnr .. '> call cleave#OnTextChanged()'
         execute 'autocmd TextChanged <buffer=' .. left_bufnr .. '> call cleave#OnTextChanged()'
+    augroup END
+
+    # Clean up stale state if a cleave buffer is manually wiped
+    augroup CleaveCleanup
+        execute 'autocmd! BufWipeout <buffer=' .. left_bufnr .. '>'
+        execute 'autocmd! BufWipeout <buffer=' .. right_bufnr .. '>'
+        execute 'autocmd BufWipeout <buffer=' .. left_bufnr .. '> call cleave#OnCleaveBufferWiped()'
+        execute 'autocmd BufWipeout <buffer=' .. right_bufnr .. '> call cleave#OnCleaveBufferWiped()'
     augroup END
 
     return [left_bufnr, right_bufnr]
 enddef
 
 export def SetupWindows(cleave_col: number, left_bufnr: number, right_bufnr: number, original_winid: number, original_cursor: list<number>, original_foldcolumn: number)
-    win_gotoid(original_winid)
+    if !win_gotoid(original_winid)
+        echoerr "Cleave: Original window no longer exists."
+        return
+    endif
     vsplit
     
     execute 'buffer' left_bufnr
@@ -1025,7 +1074,38 @@ export def UndoCleave()
     TeardownCleave(original_bufnr, left_bufnr, right_bufnr)
 enddef
 
-
+# Called via BufWipeout autocmd when a cleave buffer is manually killed.
+# Clears b:cleave on the surviving peer so commands don't operate on
+# dead buffers.
+export def OnCleaveBufferWiped()
+    var wiped = expand('<abuf>')->str2nr()
+    # Scan remaining buffers for a peer pointing at the wiped buffer
+    for bnr in range(1, bufnr('$'))
+        if !bufexists(bnr) || bnr == wiped
+            continue
+        endif
+        var info = getbufvar(bnr, 'cleave', {})
+        if !empty(info) && get(info, 'peer', -1) == wiped
+            setbufvar(bnr, 'cleave', {})
+        endif
+    endfor
+    # Clear autocmd groups since session is broken
+    augroup CleaveInsertLeave
+        autocmd!
+    augroup END
+    augroup CleaveTextChanged
+        autocmd!
+    augroup END
+    augroup CleaveCleanup
+        autocmd!
+    augroup END
+    if has('textprop')
+        try
+            prop_type_delete('cleave_paragraph_start')
+        catch
+        endtry
+    endif
+enddef
 
 export def JoinBuffers()
     # Get buffer numbers using helper function
@@ -1075,8 +1155,9 @@ export def JoinBuffers()
         bufload(original_bufnr)
     endif
     
-    # First clear the buffer, then set new content
+    # First clear the buffer, then set new content as a single undo step
     deletebufline(original_bufnr, 1, '$')
+    undojoin
     setbufline(original_bufnr, 1, combined_lines)
 
     # Restore options from left buffer to original
