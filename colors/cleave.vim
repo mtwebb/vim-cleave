@@ -53,7 +53,7 @@ execute "hi StatusLine guibg=".bg_lightest." guifg=".accent_blue." cterm=bold,re
 execute "hi StatusLineNC guibg=".bg_main." guifg=".text_muted." cterm=NONE"
 
 execute "hi Modeline guifg=". accent_blue . " cterm=italic"  
-execute "hi ColorColumn guibg=".bg_lightest. " guifg=".text_main
+execute "hi ColorColumn guibg=".bg_lightest. " guifg=NONE"
 
 " Headings (H1-H5)
 execute "hi markdownH1 guibg=".bg_main." guifg=".accent_blue." cterm=bold"
