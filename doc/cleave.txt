@@ -5,10 +5,11 @@ CONTENTS                                     *cleave-contents*
 
   1. Introduction...................|cleave-introduction|
   2. Commands.......................|cleave-commands|
-  3. Options........................|cleave-options|
-  4. Modelines......................|cleave-modelines|
-  5. Examples.......................|cleave-examples|
-  6. Requirements...................|cleave-requirements|
+  3. Inline Notes...................|cleave-inline|
+  4. Options........................|cleave-options|
+  5. Modelines......................|cleave-modelines|
+  6. Examples.......................|cleave-examples|
+  7. Requirements...................|cleave-requirements|
 
 ==============================================================================
 INTRODUCTION                                 *cleave-introduction*
@@ -21,6 +22,7 @@ annotations, or formatted text.
 
 Key features:
 - Buffer splitting at any column position
+- Inline note mode for `^[...]` markdown notes (|cleave-inline|)
 - Text reflow with paragraph alignment preservation
 - Spatial preservation of cursor position and scrolling
 - Intelligent paragraph boundary detection
@@ -28,6 +30,21 @@ Key features:
 
 ==============================================================================
 COMMANDS                                     *cleave-commands*
+
+*:Cleave*
+    Auto-detects the best split strategy for the current buffer:
+
+    1. If |g:cleave_inline_mode| allows it and the buffer contains
+       `^[...]` inline notes, uses the inline split path
+       (see |cleave-inline|).
+    2. Otherwise, if a modeline is present, uses its `cc` value.
+    3. Otherwise, if a consistent whitespace gap is detected between
+       left and right content, splits at the gap column.
+    4. Otherwise, falls back to the longest line width plus gutter.
+
+    Example: >
+        :Cleave
+<
 
 *:CleaveAtCursor*
     Splits the current buffer at the cursor's virtual column position
@@ -78,13 +95,29 @@ COMMANDS                                     *cleave-commands*
     discards any changes made to the split buffers and returns to the
     original buffer state.
 
-*:CleaveJoin*
+*:CleaveJoin* [mode]
     Merges the left and right buffers back into the original buffer,
     maintaining proper alignment and spacing between the content. Changes
     made to either buffer are preserved in the merged result.
     
-    The plugin calculates the necessary padding to maintain proper column
-    alignment when joining the content.
+    For column-based sessions, the plugin calculates the necessary
+    padding to maintain proper column alignment when joining.
+
+    For inline sessions (|cleave-inline|), non-empty right-buffer
+    lines are re-inserted into the corresponding left line as `^[content]`
+    at the end.
+
+    By default, the join mode is auto-detected from the session's
+    `split_mode`. Pass an optional [mode] argument to override:
+
+    - `inline`    Force inline merge (right lines become `^[...]` notes)
+    - `column`    Force column-based join (right lines padded to cleave column)
+
+    Example: >
+        :CleaveJoin
+        :CleaveJoin inline
+        :CleaveJoin column
+<
 
 *:CleaveReflow {width} [mode]*               *cleave-reflow*
     Reflows the text in the current buffer (left or right) to the specified
@@ -289,6 +322,117 @@ Auto-sync behaviors ~
     paragraph positions without requiring a manual |:CleaveSetProps| call.
 
 ==============================================================================
+INLINE NOTES                                 *cleave-inline*
+
+Vim-cleave can split and merge inline notes written in markdown-style
+`^[...]` syntax. This provides a second split mode alongside the default
+column-based workflow.
+
+                                             *cleave-inline-format*
+Inline note format ~
+
+    Inline notes are written using `^[` and `]` delimiters: >
+
+        The quick brown fox jumps. ^[This is a margin note]
+<
+    When cleaved, the left buffer receives the prose with the `^[...]`
+    markup removed entirely: >
+
+        The quick brown fox jumps.
+<
+    The right buffer receives only the bare note body: >
+
+        This is a margin note
+<
+    Lines without inline notes pass through to the left buffer unchanged;
+    the corresponding right-buffer line is left empty.
+
+                                             *cleave-inline-constraints*
+Constraints (v1) ~
+
+    - At most one `^[...]` inline note per source line.
+    - Multiple inline notes are allowed across the document.
+    - Notes must be single-line and non-nested (no `^[` inside `^[...]`).
+    - The `]` character is not allowed inside note content.
+
+                                             *cleave-inline-detection*
+Auto-detection ~
+
+    When |g:cleave_inline_mode| is `auto` (the default), |:Cleave|
+    checks whether the buffer has a markdown-like filetype (`markdown`,
+    `md`, `rmd`, `qmd`, `quarto`, `pandoc`) and contains at least one
+    `^[...]` note. If both conditions are met, the inline split path
+    is used automatically. Otherwise the standard column-based split
+    applies.
+
+    Set `g:cleave_inline_mode` to `on` to enable inline detection
+    for any filetype, or `off` to disable it entirely. See
+    |g:cleave_inline_mode| for details.
+
+                                             *cleave-inline-splitting*
+Splitting ~
+
+    The inline split is triggered by |:Cleave| when inline notes are
+    detected (see above). The plugin:
+
+    1. Scans every line for `^[...]` markers.
+    2. Builds a left buffer (prose, markup removed) and a right buffer
+       (note bodies only).
+    3. Computes a cleave column from the longest left line plus the
+       gutter (|g:cleave_gutter|).
+    4. Creates the two-window layout with scroll binding, just like a
+       column-based cleave.
+
+    The split session stores `split_mode = 'inline'` in `b:cleave` so
+    that the correct merge path is used on join.
+
+    Explicit column commands (|:CleaveAtCursor|, |:CleaveAtColumn|)
+    always use the column-based split, even when inline notes are present.
+
+                                             *cleave-inline-merging*
+Merging ~
+
+    |:CleaveJoin| automatically detects inline sessions and merges
+    accordingly: each non-empty right-buffer line is re-inserted into
+    the corresponding left line as `^[content]` at the end of the line.
+
+    Example — before merge: >
+
+        Left buffer               Right buffer
+        ─────────────             ─────────────
+        First paragraph.          Background ref
+                                  
+        Second paragraph.         See chapter 3
+<
+    After |:CleaveJoin|: >
+
+        First paragraph. ^[Background ref]
+
+        Second paragraph. ^[See chapter 3]
+<
+                                             *cleave-inline-workflow*
+Typical inline note workflow ~
+>
+    " 1. Open a markdown file with inline notes
+    :edit notes.md
+
+    " 2. Cleave — inline notes are auto-detected
+    :Cleave
+
+    " 3. Edit prose in the left buffer; edit/add notes in the right
+    "    buffer. Paragraph anchors keep notes aligned.
+
+    " 4. Reflow the left buffer if needed
+    :CleaveReflow 72
+
+    " 5. Join — notes are serialized back as ^[...] syntax
+    :CleaveJoin
+<
+    If the file has no `^[...]` notes, |:Cleave| falls through to the
+    standard column-based split. Existing column workflows are
+    unaffected.
+
+==============================================================================
 OPTIONS                                      *cleave-options*
 
 *g:cleave_gutter*
@@ -347,6 +491,25 @@ OPTIONS                                      *cleave-options*
 
     Example: >
         g:cleave_structure_mode = 'markdown'
+<
+
+*g:cleave_inline_mode*
+    Controls whether vim-cleave uses the inline split path.
+    See |cleave-inline| for full details.
+
+    Values:
+    - `auto`  Enables inline splitting for markdown-like filetypes
+              (`markdown`, `md`, `rmd`, `qmd`, `quarto`, `pandoc`) when
+              at least one `^[...]` note is present. (default)
+    - `on`    Enables inline splitting for any filetype when at least
+              one `^[...]` note is present.
+    - `off`   Disables inline splitting entirely. All buffers use the
+              column-based split, regardless of content.
+
+    Default: `auto`
+
+    Example: >
+        g:cleave_inline_mode = 'on'
 <
 
 *g:cleave_justify_last_line*
@@ -476,6 +639,40 @@ Basic workflow: >
     
     " Or restore original buffer
     :CleaveUndo
+
+Inline note workflow: >
+    " Given a markdown file (notes.md) containing:
+    "   # Chapter One
+    "
+    "   The fox jumps over the lazy dog. ^[See Smith 2020]
+    "
+    "   Another paragraph continues. ^[Contradicts Jones]
+    "
+    "   A plain paragraph with no notes.
+
+    " Open and cleave — inline notes are detected automatically
+    :edit notes.md
+    :Cleave
+
+    " Left buffer shows:              Right buffer shows:
+    "   # Chapter One                   
+    "                                   
+    "   The fox jumps over ...          See Smith 2020
+    "                                   
+    "   Another paragraph ...           Contradicts Jones
+    "                                   
+    "   A plain paragraph ...           
+
+    " Edit either buffer freely, then join
+    :CleaveJoin
+
+    " Result: notes are merged back as ^[...] at end of line
+
+    " To force column-based split even with inline notes present:
+    :CleaveAtColumn 40
+
+    " To disable inline detection globally:
+    g:cleave_inline_mode = 'off'
 
 Modeline workflow: >
     " Enable modeline updates in your vimrc
