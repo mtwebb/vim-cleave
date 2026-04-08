@@ -512,6 +512,19 @@ OPTIONS                                      *cleave-options*
         g:cleave_inline_mode = 'on'
 <
 
+*g:cleave_inline_width*
+    When set to a value >= 10, the right buffer is automatically reflowed
+    to this width after an inline split. This wraps long single-line notes
+    into readable paragraphs in the right buffer.
+
+    When set to `0` (the default), no automatic reflow is performed.
+
+    Default: `0`
+
+    Example: >
+        g:cleave_inline_width = 40
+<
+
 *g:cleave_justify_last_line*
     When enabled, justify the final line of each paragraph.
 

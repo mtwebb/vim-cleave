@@ -140,20 +140,22 @@ function! TestMergeInlineBasic()
     return [passed, total]
 endfunction
 
-function! TestMergeInlineMultipleNotes()
-    echomsg "=== TestMergeInlineMultipleNotes ==="
+function! TestMergeInlineMultiLineNote()
+    echomsg "=== TestMergeInlineMultiLineNote ==="
     let passed = 0
     let total = 0
 
-    " Two notes: first on same line, second on continuation (empty left)
-    let left = ['Main text here.', '']
-    let right = ['First note', 'Second note']
+    " Multi-line right paragraph merges into a single ^[...] note
+    let left = ['Main text here.', 'More left text.']
+    let right = ['First part of note', 'second part of note']
     let merged = cleave#MergeInlineContent(left, right)
 
     let total += 1
-    let passed += AssertEqual(1, len(merged), 'Multi merge: continuation collapsed into one line')
+    let passed += AssertEqual(2, len(merged), 'Multi-line note: output has 2 lines')
     let total += 1
-    let passed += AssertEqual('Main text here. ^[First note] ^[Second note]', merged[0], 'Multi merge: both notes on one line')
+    let passed += AssertEqual('Main text here. ^[First part of note second part of note]', merged[0], 'Multi-line note: paragraph joined into one note')
+    let total += 1
+    let passed += AssertEqual('More left text.', merged[1], 'Multi-line note: second left line passed through')
 
     echomsg passed . "/" . total . " passed"
     return [passed, total]
@@ -192,6 +194,57 @@ function! TestMergeInlineMixed()
     let passed += AssertEqual('Line three. ^[A note]', merged[2], 'Mixed merge: line 3 note merged')
     let total += 1
     let passed += AssertEqual('Line four.', merged[3], 'Mixed merge: line 4 no note')
+
+    echomsg passed . "/" . total . " passed"
+    return [passed, total]
+endfunction
+
+" ============================================================================
+" Multi-line right paragraph merges into single note
+" ============================================================================
+
+function! TestMergeInlineReflowedParagraph()
+    echomsg "=== TestMergeInlineReflowedParagraph ==="
+    let passed = 0
+    let total = 0
+
+    " Simulates a reflowed right buffer: 5-line paragraph on the right,
+    " 8 lines on the left (left paragraph is longer than right paragraph)
+    let left = [
+        \ 'In metus vulputate eu scelerisque felis imperdiet proin fermentum',
+        \ 'leo. At lectus urna duis convallis convallis tellus id. Turpis',
+        \ 'egestas maecenas pharetra convallis posuere morbi. Nunc mattis',
+        \ 'enim ut tellus elementum sagittis vitae et. Eu consequat ac felis',
+        \ 'donec et. Libero nunc consequat interdum varius sit amet mattis',
+        \ 'vulputate. Ultricies integer quis auctor elit sed vulputate mi',
+        \ 'sit amet. In dictum non consectetur a erat nam at. A diam',
+        \ 'maecenas sed enim ut sem. Pellentesque elit eget gravida cum.',
+    \ ]
+    let right = [
+        \ 'Ultricies integer quis auctor elit sed',
+        \ 'vulputate mi sit amet. In dictum non',
+        \ 'consectetur a erat nam at. A diam maecenas',
+        \ 'sed enim ut sem.  Pellentesque elit eget',
+        \ 'gravida cum.',
+        \ '',
+        \ '',
+        \ '',
+    \ ]
+    let merged = cleave#MergeInlineContent(left, right)
+
+    " Should produce 8 lines: first line has the whole note, rest are plain
+    let total += 1
+    let passed += AssertEqual(8, len(merged), 'Reflowed para: output has 8 lines')
+
+    let expected_note = 'Ultricies integer quis auctor elit sed vulputate mi sit amet. In dictum non consectetur a erat nam at. A diam maecenas sed enim ut sem.  Pellentesque elit eget gravida cum.'
+    let total += 1
+    let passed += AssertEqual(left[0] .. ' ^[' .. expected_note .. ']', merged[0], 'Reflowed para: note joined on first line')
+
+    " Remaining lines are plain left text
+    for idx in range(1, 7)
+        let total += 1
+        let passed += AssertEqual(left[idx], merged[idx], 'Reflowed para: line ' .. (idx + 1) .. ' is plain left')
+    endfor
 
     echomsg passed . "/" . total . " passed"
     return [passed, total]
@@ -311,13 +364,14 @@ function! TestSplitMergeRoundTrip()
     let total += 1
     let passed += AssertEqual(['Some text  more words. ^[A note]'], merged2, 'Round-trip: inline note moves to end')
 
-    " Multiple notes: both appear at end of line
+    " Multiple notes on same line: split creates continuation lines which
+    " merge joins into a single note (v1 limits to one note per line)
     let multi = ['Text ^[Note A] middle ^[Note B] end.']
     let [left3, right3, nmap3] = cleave#SplitInlineContent(multi)
     let merged3 = cleave#MergeInlineContent(left3, right3)
 
     let total += 1
-    let passed += AssertEqual(['Text  middle  end. ^[Note A] ^[Note B]'], merged3, 'Round-trip: multiple notes at end')
+    let passed += AssertEqual(['Text  middle  end. ^[Note A Note B]', ''], merged3, 'Round-trip: multiple notes joined into one')
 
     " Mixed document: lines without notes unchanged, notes move to end
     let mixed = [
@@ -603,13 +657,16 @@ function! RunInlineTests()
     let [p, t] = TestMergeInlineBasic()
     let total_passed += p | let total_tests += t
 
-    let [p, t] = TestMergeInlineMultipleNotes()
+    let [p, t] = TestMergeInlineMultiLineNote()
     let total_passed += p | let total_tests += t
 
     let [p, t] = TestMergeInlineNoNotes()
     let total_passed += p | let total_tests += t
 
     let [p, t] = TestMergeInlineMixed()
+    let total_passed += p | let total_tests += t
+
+    let [p, t] = TestMergeInlineReflowedParagraph()
     let total_passed += p | let total_tests += t
 
     let [p, t] = TestMultipleInlineNotesAcrossDocument()

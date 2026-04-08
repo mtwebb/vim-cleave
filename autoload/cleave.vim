@@ -39,6 +39,10 @@ if !exists('g:cleave_inline_mode')
     g:cleave_inline_mode = 'auto'
 endif
 
+if !exists('g:cleave_inline_width')
+    g:cleave_inline_width = 0
+endif
+
 # ============================================================================
 # Inline Note Helpers
 # ============================================================================
@@ -153,10 +157,9 @@ export def SplitInlineContent(lines: list<string>): list<any>
 enddef
 
 # Merge left (main text) and right (notes) back into inline note syntax.
-# Walks line-by-line: non-empty right lines are inline notes that get inserted
-# back into the corresponding left line as ^[content].
-# Consecutive right-only lines (left is empty) are additional notes appended
-# to the preceding left line.
+# Consecutive non-empty right lines form a single paragraph that is joined
+# into one ^[...] note attached to the first corresponding left line.
+# Empty right lines separate note paragraphs.
 export def MergeInlineContent(left_lines: list<string>, right_lines: list<string>): list<string>
     var merged: list<string> = []
     var max_lines = max([len(left_lines), len(right_lines)])
@@ -174,23 +177,28 @@ export def MergeInlineContent(left_lines: list<string>, right_lines: list<string
             continue
         endif
 
-        # Build merged line: left text + first note
-        var line = left .. ' ^[' .. right_trimmed .. ']'
-
-        # Collect any continuation notes (left is empty, right has content)
+        # Collect the entire right-buffer paragraph into a single note
+        var note_parts: list<string> = [right_trimmed]
         var j = i + 1
         while j < max_lines
-            var next_left = (j < len(left_lines)) ? left_lines[j] : ''
             var next_right = (j < len(right_lines)) ? right_lines[j] : ''
-            if empty(trim(next_left)) && !empty(trim(next_right))
-                line ..= ' ^[' .. trim(next_right) .. ']'
+            if !empty(trim(next_right))
+                add(note_parts, trim(next_right))
                 j += 1
             else
                 break
             endif
         endwhile
 
-        add(merged, line)
+        var note_body = join(note_parts, ' ')
+        add(merged, left .. ' ^[' .. note_body .. ']')
+
+        # Pass through remaining left lines that were part of this paragraph
+        for k in range(i + 1, j - 1)
+            var next_left = (k < len(left_lines)) ? left_lines[k] : ''
+            add(merged, next_left)
+        endfor
+
         i = j
     endwhile
 
@@ -1049,6 +1057,24 @@ def SplitBufferInline(bufnr: number)
         setbufvar(original_bufnr, 'cleave_col_last', cleave_col)
 
         SetTextProperties()
+
+        # Reflow right buffer if g:cleave_inline_width is set
+        var inline_width = get(g:, 'cleave_inline_width', 0)
+        if inline_width >= 10
+            var right_winid = get(win_findbuf(right_bufnr), 0, -1)
+            if right_winid != -1 && win_gotoid(right_winid)
+                var reflow_opts = ResolveReflowOptions(inline_width, '')
+                if !empty(reflow_opts)
+                    ReflowRightBuffer(reflow_opts, right_bufnr,
+                        \ left_bufnr, right_bufnr)
+                endif
+                # Return to left window
+                var left_winid = get(win_findbuf(left_bufnr), 0, -1)
+                if left_winid != -1
+                    win_gotoid(left_winid)
+                endif
+            endif
+        endif
     finally
         &hidden = saved_hidden
     endtry
