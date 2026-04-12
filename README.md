@@ -50,6 +50,22 @@ Plugin 'mtwebb/vim-cleave'
 
 ### Commands
 
+#### `:CleaveImport`
+Imports a buffer containing markdown-style inline notes (`^[...]`) into a cleave session. The prose is placed in the left buffer, note bodies are placed in the right buffer, and the left side is reflowed so notes can align beside the text they annotate.
+
+**Example:**
+```vim
+:CleaveImport
+```
+
+#### `:CleaveExport`
+Exports an inline note session back to a single buffer. Consecutive non-empty right-buffer lines are serialized as a single `^[...]` note attached to the matching left-buffer line.
+
+**Example:**
+```vim
+:CleaveExport
+```
+
 #### `:CleaveAtCursor`
 Splits the current buffer at the cursor's virtual column position (`virtcol('.')`).
 Always uses the cursor position, even when a modeline with a `cc` value is present.
@@ -236,6 +252,23 @@ nnoremap <Tab> :CleaveJump<CR>
 - **Diff Editing**: Work with unified diff files
 - **Formatted Text**: Edit text with specific column layouts
 - **Data Files**: Work with fixed-width data formats
+- **Inline Notes**: Import markdown files with `^[...]` notes and cleave them into left/right columns for annotation work
+
+## Inline Notes Workflow
+
+For markdown files containing inline notes:
+
+```markdown
+The fox jumps over the lazy dog. ^[See Smith 2020]
+Another paragraph continues. ^[Contradicts Jones]
+```
+
+1. Open the file: `:edit notes.md`
+2. Import the notes: `:CleaveImport`
+3. Left buffer shows prose, right buffer shows notes
+4. Edit either buffer freely
+5. Export back: `:CleaveExport`
+6. Result: notes are re-merged as `^[...]` at end of lines
 
 ## Requirements
 
