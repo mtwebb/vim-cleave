@@ -48,21 +48,22 @@ function! TestSplitInlineMultipleNotes()
     let passed = 0
     let total = 0
 
-    " Two notes on the same line
+    " Two notes on the same line — no blank padding lines inserted
     let lines = ['Text ^[Note one] middle ^[Note two] end.']
     let [left, right, nmap] = cleave#inline#SplitContent(lines)
 
-    " First note goes on line 1, second creates a continuation line
     let total += 1
-    let passed += AssertEqual('Text  middle  end.', left[0], 'Multi-note: first left line has markup removed')
+    let passed += AssertEqual(1, len(left), 'Multi-note: only one left line (no padding)')
+    let total += 1
+    let passed += AssertEqual('Text  middle  end.', left[0], 'Multi-note: left line has markup removed')
+    let total += 1
+    let passed += AssertEqual(1, len(right), 'Multi-note: only one right line')
     let total += 1
     let passed += AssertEqual('Note one', right[0], 'Multi-note: first right line is first note')
     let total += 1
-    let passed += AssertEqual('', left[1], 'Multi-note: continuation left line is empty')
-    let total += 1
-    let passed += AssertEqual('Note two', right[1], 'Multi-note: second right line is second note')
-    let total += 1
     let passed += AssertEqual(2, len(nmap), 'Multi-note: note_map has 2 entries')
+    let total += 1
+    let passed += AssertEqual('Note two', get(nmap[1], 'text', ''), 'Multi-note: second note text in note_map')
 
     echomsg passed . "/" . total . " passed"
     return [passed, total]
@@ -365,14 +366,14 @@ function! TestSplitMergeRoundTrip()
     let total += 1
     let passed += AssertEqual(['Some text  more words. ^[A note]'], merged2, 'Round-trip: inline note moves to end')
 
-    " Multiple notes on same line: split creates continuation lines which
-    " merge joins into a single note (v1 limits to one note per line)
+    " Multiple notes on same line: no padding lines; only first note is in
+    " right buffer, additional notes stored in note_map.text
     let multi = ['Text ^[Note A] middle ^[Note B] end.']
     let [left3, right3, nmap3] = cleave#inline#SplitContent(multi)
     let merged3 = cleave#inline#MergeContent(left3, right3)
 
     let total += 1
-    let passed += AssertEqual(['Text  middle  end. ^[Note A Note B]', ''], merged3, 'Round-trip: multiple notes joined into one')
+    let passed += AssertEqual(['Text  middle  end. ^[Note A]'], merged3, 'Round-trip: first note merges back')
 
     " Mixed document: lines without notes unchanged, notes move to end
     let mixed = [
@@ -811,6 +812,96 @@ function! TestInlineAnchorWordAlignment()
 endfunction
 
 " ============================================================================
+" CleaveImport with lorem_ipsum_inline.md (multi-paragraph, multi-note)
+" ============================================================================
+
+function! TestImportLoremIpsumInline()
+    echomsg "=== TestImportLoremIpsumInline ==="
+    let passed = 0
+    let total = 0
+
+    edit test/lorem_ipsum_inline.md
+    setlocal filetype=markdown
+
+    CleaveImport
+
+    let info = getbufvar(bufnr('%'), 'cleave', {})
+    let total += 1
+    let passed += AssertEqual('inline', get(info, 'split_mode', ''), 'LoremImport: inline mode')
+
+    " Left buffer should be reflowed — no line exceeds tw (79)
+    let left_lines = getline(1, '$')
+    let max_w = 0
+    for line in left_lines
+        let w = strdisplaywidth(line)
+        if w > max_w
+            let max_w = w
+        endif
+    endfor
+    let total += 1
+    let passed += AssertEqual(v:true, max_w <= 85, 'LoremImport: left lines reflowed within width (' . max_w . ')')
+
+    " Left buffer should have more lines than original (84) due to reflow
+    let total += 1
+    let passed += AssertEqual(v:true, len(left_lines) > 84, 'LoremImport: left buffer expanded by reflow (' . len(left_lines) . ')')
+
+    " Right buffer should have 6 notes (4 lines have notes; 2 have 2 each)
+    wincmd l
+    let right_lines = getline(1, '$')
+    let note_count = 0
+    for line in right_lines
+        if !empty(trim(line))
+            let note_count += 1
+        endif
+    endfor
+    let total += 1
+    let passed += AssertEqual(6, note_count, 'LoremImport: 6 notes in right buffer')
+
+    " Each note should be on a line where the left buffer contains
+    " the corresponding anchor word
+    wincmd h
+    let left_lines = getline(1, '$')
+    wincmd l
+    let right_lines = getline(1, '$')
+
+    " Build anchor→note pairs from the original file
+    let expected_anchors = ['proin', 'fermentum', 'proin', 'ornare', 'malesuada', 'rutrum']
+    let anchor_idx = 0
+    for i in range(len(right_lines))
+        if !empty(trim(right_lines[i]))
+            if anchor_idx < len(expected_anchors)
+                let anchor = expected_anchors[anchor_idx]
+                let left_line = i < len(left_lines) ? left_lines[i] : ''
+                let total += 1
+                let passed += AssertEqual(v:true, left_line =~# '\V' . escape(anchor, '\'), 'LoremImport: note ' . (anchor_idx + 1) . ' aligned with "' . anchor . '" (line ' . (i + 1) . ')')
+                let anchor_idx += 1
+            endif
+        endif
+    endfor
+
+    " Notes from different original paragraphs should NOT be adjacent
+    " (there should be paragraph gaps between them)
+    let note_lines = []
+    for i in range(len(right_lines))
+        if !empty(trim(right_lines[i]))
+            call add(note_lines, i + 1)
+        endif
+    endfor
+    " First two notes are from different paragraphs (lines 3 and 6)
+    let total += 1
+    let passed += AssertEqual(v:true, note_lines[1] - note_lines[0] > 2, 'LoremImport: notes 1-2 have paragraph gap')
+    " Notes 2 and 3 are from different paragraphs (lines 6 and 11)
+    let total += 1
+    let passed += AssertEqual(v:true, note_lines[2] - note_lines[1] > 2, 'LoremImport: notes 2-3 have paragraph gap')
+
+    wincmd h
+    CleaveExport
+
+    echomsg passed . "/" . total . " passed"
+    return [passed, total]
+endfunction
+
+" ============================================================================
 " Runner
 " ============================================================================
 
@@ -872,6 +963,9 @@ function! RunInlineTests()
     let total_passed += p | let total_tests += t
 
     let [p, t] = TestInlineAnchorWordAlignment()
+    let total_passed += p | let total_tests += t
+
+    let [p, t] = TestImportLoremIpsumInline()
     let total_passed += p | let total_tests += t
 
     echomsg "================================="

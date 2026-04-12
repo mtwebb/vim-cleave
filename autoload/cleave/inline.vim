@@ -56,6 +56,11 @@ enddef
 # Returns [left_lines, right_lines, note_map] where note_map is a list of
 # dicts {line: N, index: I, anchor: word} recording which source line each
 # note came from and the preceding anchor word.
+#
+# All notes from the same source line share that left line (no blank
+# padding lines inserted).  The first note goes on the same right-buffer
+# line; additional notes are collected in note_map only — ReflowLeft
+# repositions them at their anchor words after the left text is reflowed.
 export def SplitContent(lines: list<string>): list<any>
     var left_lines: list<string> = []
     var right_lines: list<string> = []
@@ -78,13 +83,14 @@ export def SplitContent(lines: list<string>): list<any>
             add(note_map, {'line': i + 1, 'index': note_index,
                 \ 'anchor': get(anchors, 0, '')})
             note_index += 1
-            # Additional notes on the same source line get appended as
-            # subsequent right-buffer lines (left side gets blank padding)
+            # Additional notes are recorded in note_map with their
+            # anchors and text, but do NOT create blank left-side
+            # padding lines.  ReflowLeft will position them at the
+            # correct anchor word.
             for j in range(1, len(notes) - 1)
-                add(left_lines, '')
-                add(right_lines, notes[j])
                 add(note_map, {'line': i + 1, 'index': note_index,
-                    \ 'anchor': get(anchors, j, '')})
+                    \ 'anchor': get(anchors, j, ''),
+                    \ 'text': notes[j]})
                 note_index += 1
             endfor
         else
@@ -154,22 +160,92 @@ export def ReflowLeft(options: dict<any>, left_bufnr: number,
     \ right_bufnr: number, note_map: list<dict<any>>)
     var right_lines = getbufline(right_bufnr, 1, '$')
 
+    # Capture left buffer before reflow for paragraph mapping
+    var left_lines_before = getline(1, '$')
+
     # Reflow left buffer text
-    var reflowed_lines = cleave#ReflowText(getline(1, '$'), options)
+    var reflowed_lines = cleave#ReflowText(left_lines_before, options)
     cleave#ReplaceBufferLines(bufnr('%'), reflowed_lines)
 
-    # Locate each anchor word in the reflowed text.  Search line by line
-    # from the last match onward so multiple notes keep their order.
+    # Build a map from original source line → reflowed line range.
+    # Pre-reflow left lines keep the same line numbers as the original
+    # source (SplitContent produces one left line per source line).
+    # After reflow, a single long source line may expand into many
+    # reflowed lines.  We walk both sequences in tandem: for each
+    # pre-reflow paragraph (block of non-blank lines), find the
+    # matching paragraph in the reflowed output.
+    # Build paragraph ranges for pre-reflow text: list of [start, end]
+    # (0-based inclusive indices) for each block of non-blank lines.
+    var pre_paras: list<list<number>> = []
+    var in_para = false
+    var para_start = 0
+    for li in range(len(left_lines_before))
+        if !empty(trim(left_lines_before[li]))
+            if !in_para
+                para_start = li
+                in_para = true
+            endif
+        else
+            if in_para
+                add(pre_paras, [para_start, li - 1])
+                in_para = false
+            endif
+        endif
+    endfor
+    if in_para
+        add(pre_paras, [para_start, len(left_lines_before) - 1])
+    endif
+
+    # Build corresponding paragraph ranges for reflowed text
+    var ref_paras: list<list<number>> = []
+    in_para = false
+    para_start = 0
+    for li in range(len(reflowed_lines))
+        if !empty(trim(reflowed_lines[li]))
+            if !in_para
+                para_start = li
+                in_para = true
+            endif
+        else
+            if in_para
+                add(ref_paras, [para_start, li - 1])
+                in_para = false
+            endif
+        endif
+    endfor
+    if in_para
+        add(ref_paras, [para_start, len(reflowed_lines) - 1])
+    endif
+
+    # For each note, find which pre-reflow paragraph contains its
+    # source line, then search for the anchor word only within the
+    # corresponding reflowed paragraph.
     var note_targets: list<number> = []
-    var search_from = 0
+    # Track the last matched line within each paragraph to handle
+    # multiple notes in the same paragraph with overlapping anchors.
+    var para_search_from: dict<number> = {}
     for entry in note_map
         var anchor = get(entry, 'anchor', '')
+        var src_line = entry.line - 1  # 0-based
         var target_line = -1
-        if !empty(anchor)
-            for lnum in range(search_from, len(reflowed_lines) - 1)
+
+        # Find which pre-reflow paragraph this source line belongs to
+        var para_idx = -1
+        for pi in range(len(pre_paras))
+            if src_line >= pre_paras[pi][0] && src_line <= pre_paras[pi][1]
+                para_idx = pi
+                break
+            endif
+        endfor
+
+        if !empty(anchor) && para_idx >= 0 && para_idx < len(ref_paras)
+            var ref_start = ref_paras[para_idx][0]
+            var ref_end = ref_paras[para_idx][1]
+            var search_start = get(para_search_from, string(para_idx), ref_start)
+            for lnum in range(search_start, ref_end)
                 if reflowed_lines[lnum] =~# '\V' .. escape(anchor, '\')
                     target_line = lnum + 1
-                    search_from = lnum
+                    para_search_from[string(para_idx)] = lnum + 1
                     break
                 endif
             endfor
@@ -177,24 +253,28 @@ export def ReflowLeft(options: dict<any>, left_bufnr: number,
         add(note_targets, target_line)
     endfor
 
-    # Build a new right buffer: for each note, find the nth non-empty
-    # right line (matching note_map order) and place it at its target.
+    # Build a new right buffer: place each note at its anchor target.
+    # Notes that have a 'text' key in note_map carry their own text
+    # (additional notes from multi-note source lines); first notes
+    # are matched by order against non-empty right-buffer lines.
     var new_right: list<string> = []
+    var right_cursor = 0
     for ni in range(len(note_map))
         var target = get(note_targets, ni, -1)
 
-        # Find the note text — the (ni)th non-empty right-buffer line
-        var note_text = ''
-        var found_count = 0
-        for ri in range(len(right_lines))
-            if !empty(trim(right_lines[ri]))
-                if found_count == ni
-                    note_text = trim(right_lines[ri])
+        # Get note text: from note_map.text if present, else next
+        # non-empty right-buffer line
+        var note_text = get(note_map[ni], 'text', '')
+        if empty(note_text)
+            while right_cursor < len(right_lines)
+                if !empty(trim(right_lines[right_cursor]))
+                    note_text = trim(right_lines[right_cursor])
+                    right_cursor += 1
                     break
                 endif
-                found_count += 1
-            endif
-        endfor
+                right_cursor += 1
+            endwhile
+        endif
 
         if target < 1
             # Anchor not found — place after the last entry
