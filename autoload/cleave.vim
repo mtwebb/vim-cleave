@@ -35,176 +35,6 @@ if !exists('g:cleave_structure_mode')
     g:cleave_structure_mode = 'auto'
 endif
 
-if !exists('g:cleave_inline_mode')
-    g:cleave_inline_mode = 'auto'
-endif
-
-if !exists('g:cleave_inline_width')
-    g:cleave_inline_width = 0
-endif
-
-# ============================================================================
-# Inline Note Helpers
-# ============================================================================
-
-# Pattern for inline notes: ^[content]
-# Matches non-nested ^[...] with any content that doesn't contain ]
-const INLINE_NOTE_PATTERN = '\^\[\([^\]]*\)\]'
-
-# Return true if the line contains at least one inline note ^[...]
-def HasInlineNote(line: string): bool
-    return line =~# '\^' .. '\[[^\]]*\]'
-enddef
-
-# Count the number of inline notes in a buffer
-def CountInlineNotes(lines: list<string>): number
-    var count = 0
-    for line in lines
-        var pos = 0
-        while true
-            var m = matchstrpos(line, INLINE_NOTE_PATTERN, pos)
-            if m[1] == -1
-                break
-            endif
-            count += 1
-            pos = m[2]
-        endwhile
-    endfor
-    return count
-enddef
-
-# Return true if the buffer should use inline note splitting.
-# Requires g:cleave_inline_mode != 'off' and at least one ^[...] note
-# in a markdown-like buffer.
-def ShouldUseInlineMode(bufnr: number): bool
-    var mode = get(g:, 'cleave_inline_mode', 'auto')
-    if mode ==# 'off'
-        return false
-    endif
-    if mode ==# 'on'
-        var lines = getbufline(bufnr, 1, '$')
-        return CountInlineNotes(lines) > 0
-    endif
-    # auto: only for markdown-like filetypes with inline notes
-    var ft = getbufvar(bufnr, '&filetype')
-    if !IsMarkdownLikeFiletype(ft)
-        return false
-    endif
-    var lines = getbufline(bufnr, 1, '$')
-    return CountInlineNotes(lines) > 0
-enddef
-
-# Split a single line into [main_text, list_of_notes].
-# Each ^[content] is removed from the main text and its inner content
-# is collected in order.
-def ExtractInlineNotesFromLine(line: string): list<any>
-    var notes: list<string> = []
-    var result = ''
-    var pos = 0
-    while true
-        var m = matchstrpos(line, INLINE_NOTE_PATTERN, pos)
-        if m[1] == -1
-            result ..= strpart(line, pos)
-            break
-        endif
-        # Append text before the match
-        result ..= strpart(line, pos, m[1] - pos)
-        # Extract note content (submatch group 1)
-        var note_content = matchstr(strpart(line, m[1]), '\^\[\zs[^\]]*\ze\]')
-        add(notes, note_content)
-        pos = m[2]
-    endwhile
-    return [result, notes]
-enddef
-
-# Split buffer lines into left (main text) and right (notes) for inline mode.
-# Returns [left_lines, right_lines, note_map] where note_map is a list of
-# dicts {line: N, notes: [str,...]} recording which source line each note came from.
-export def SplitInlineContent(lines: list<string>): list<any>
-    var left_lines: list<string> = []
-    var right_lines: list<string> = []
-    var note_map: list<dict<any>> = []
-    var note_index = 0
-
-    for i in range(len(lines))
-        var line = lines[i]
-        if !HasInlineNote(line)
-            add(left_lines, line)
-            add(right_lines, '')
-            continue
-        endif
-        var [main_text, notes] = ExtractInlineNotesFromLine(line)
-        # Trim trailing whitespace left behind after note removal
-        add(left_lines, substitute(main_text, '\s\+$', '', ''))
-        # First note on this line goes on the same right-buffer line
-        if !empty(notes)
-            add(right_lines, notes[0])
-            add(note_map, {'line': i + 1, 'index': note_index})
-            note_index += 1
-            # Additional notes on the same source line get appended as
-            # subsequent right-buffer lines (left side gets blank padding)
-            for j in range(1, len(notes) - 1)
-                add(left_lines, '')
-                add(right_lines, notes[j])
-                add(note_map, {'line': i + 1, 'index': note_index})
-                note_index += 1
-            endfor
-        else
-            add(right_lines, '')
-        endif
-    endfor
-    return [left_lines, right_lines, note_map]
-enddef
-
-# Merge left (main text) and right (notes) back into inline note syntax.
-# Consecutive non-empty right lines form a single paragraph that is joined
-# into one ^[...] note attached to the first corresponding left line.
-# Empty right lines separate note paragraphs.
-export def MergeInlineContent(left_lines: list<string>, right_lines: list<string>): list<string>
-    var merged: list<string> = []
-    var max_lines = max([len(left_lines), len(right_lines)])
-    var i = 0
-
-    while i < max_lines
-        var left = (i < len(left_lines)) ? left_lines[i] : ''
-        var right = (i < len(right_lines)) ? right_lines[i] : ''
-        var right_trimmed = trim(right)
-
-        if empty(right_trimmed)
-            # No note on this line — pass through left text
-            add(merged, left)
-            i += 1
-            continue
-        endif
-
-        # Collect the entire right-buffer paragraph into a single note
-        var note_parts: list<string> = [right_trimmed]
-        var j = i + 1
-        while j < max_lines
-            var next_right = (j < len(right_lines)) ? right_lines[j] : ''
-            if !empty(trim(next_right))
-                add(note_parts, trim(next_right))
-                j += 1
-            else
-                break
-            endif
-        endwhile
-
-        var note_body = join(note_parts, ' ')
-        add(merged, left .. ' ^[' .. note_body .. ']')
-
-        # Pass through remaining left lines that were part of this paragraph
-        for k in range(i + 1, j - 1)
-            var next_left = (k < len(left_lines)) ? left_lines[k] : ''
-            add(merged, next_left)
-        endfor
-
-        i = j
-    endwhile
-
-    return merged
-enddef
-
 # ============================================================================
 # Paragraph Detection Helpers
 # ============================================================================
@@ -239,7 +69,7 @@ def MarkdownQuotePrefix(line: string): string
     return matchstr(line, '^\s*\%(>\s*\)*')
 enddef
 
-def IsMarkdownLikeFiletype(filetype: string): bool
+export def IsMarkdownLikeFiletype(filetype: string): bool
     var ft = tolower(filetype)
     if empty(ft)
         return false
@@ -530,7 +360,7 @@ enddef
 # ============================================================================
 
 # Replace all lines in a buffer, removing any excess trailing lines
-def ReplaceBufferLines(bufnr: number, lines: list<string>)
+export def ReplaceBufferLines(bufnr: number, lines: list<string>)
     setbufline(bufnr, 1, lines)
     var total = len(getbufline(bufnr, 1, '$'))
     if total > len(lines)
@@ -552,7 +382,7 @@ def PadBufferLines(bufnr: number, target_len: number)
     setbufline(bufnr, current_len + 1, padding)
 enddef
 
-def EqualizeBufferLengths(left_bufnr: number, right_bufnr: number)
+export def EqualizeBufferLengths(left_bufnr: number, right_bufnr: number)
     if left_bufnr == -1 || right_bufnr == -1
         return
     endif
@@ -750,7 +580,7 @@ export def VirtualStrpart(str: string, start_vcol: number, ...args: list<any>): 
 enddef
 
 # Resolve cleave buffer triple from b:cleave dict on the given (or current) buffer
-def ResolveBuffers(...args: list<any>): list<number>
+export def ResolveBuffers(...args: list<any>): list<number>
     var bufnr = len(args) > 0 ? args[0] : bufnr('%')
     var info = getbufvar(bufnr, 'cleave', {})
     if empty(info)
@@ -891,13 +721,7 @@ export def AutoCleave()
         return
     endif
 
-    # Priority 0: Inline note detection (before modeline/gap)
-    if ShouldUseInlineMode(buf)
-        SplitBufferInline(buf)
-        return
-    endif
-
-    # Priority 1: Modeline
+    # Priority 0: Modeline
     if cleave#modeline#Mode() !=# 'ignore'
         var parsed = cleave#modeline#Parse(buf)
         if parsed.line > 0
@@ -909,14 +733,14 @@ export def AutoCleave()
         endif
     endif
 
-    # Priority 2: Gap detection
+    # Priority 1: Gap detection
     var gap_col = DetectGapColumn(buf)
     if gap_col > 0
         SplitBufferAtCol(buf, gap_col)
         return
     endif
 
-    # Priority 3: New file fallback
+    # Priority 2: New file fallback
     var col = NewFileCleaveColumn(buf)
     if col <= 1
         echoerr "Cleave: Buffer is empty"
@@ -993,91 +817,6 @@ export def SplitAtColorcolumn()
         return
     endif
     SplitBuffer(bufnr('%'), col)
-enddef
-
-def SplitBufferInline(bufnr: number)
-    # Prevent double-cleave
-    var info = getbufvar(bufnr, 'cleave', {})
-    if !empty(info)
-        echoerr "Cleave: Already in a cleave session. Use :CleaveUndo or :CleaveJoin first."
-        return
-    endif
-    var saved_hidden = &hidden
-    set hidden
-    try
-        var original_bufnr = bufnr
-        var original_winid = win_getid()
-        var original_cursor = getcurpos()
-
-        var original_lines = getbufline(original_bufnr, 1, '$')
-        var [left_lines, right_lines, note_map] = SplitInlineContent(original_lines)
-
-        var original_name = expand('%:t')
-        if empty(original_name)
-            original_name = 'noname'
-        endif
-        var original_foldcolumn = &foldcolumn
-        var original_filetype = &filetype
-
-        # Compute a cleave column from the longest left line + gutter
-        var max_left_width = 0
-        for line in left_lines
-            var w = strdisplaywidth(substitute(line, '\s\+$', '', ''))
-            if w > max_left_width
-                max_left_width = w
-            endif
-        endfor
-        var gutter = max([1, g:cleave_gutter])
-        var cleave_col = max_left_width + gutter + 1
-
-        var [left_bufnr, right_bufnr] = CreateBuffers(left_lines, right_lines, original_name, original_foldcolumn, original_filetype)
-
-        SetupWindows(cleave_col, left_bufnr, right_bufnr, original_winid, original_cursor, original_foldcolumn)
-
-        # Store cleave state with inline mode flag
-        var left_state = {
-            \ 'original': original_bufnr,
-            \ 'side': 'left',
-            \ 'peer': right_bufnr,
-            \ 'col': cleave_col,
-            \ 'source_ft': original_filetype,
-            \ 'split_mode': 'inline',
-            \ }
-        var right_state = {
-            \ 'original': original_bufnr,
-            \ 'side': 'right',
-            \ 'peer': left_bufnr,
-            \ 'col': cleave_col,
-            \ 'source_ft': original_filetype,
-            \ 'split_mode': 'inline',
-            \ }
-        setbufvar(left_bufnr, 'cleave', left_state)
-        setbufvar(right_bufnr, 'cleave', right_state)
-
-        setbufvar(original_bufnr, 'cleave_col_last', cleave_col)
-
-        SetTextProperties()
-
-        # Reflow right buffer if g:cleave_inline_width is set
-        var inline_width = get(g:, 'cleave_inline_width', 0)
-        if inline_width >= 10
-            var right_winid = get(win_findbuf(right_bufnr), 0, -1)
-            if right_winid != -1 && win_gotoid(right_winid)
-                var reflow_opts = ResolveReflowOptions(inline_width, '')
-                if !empty(reflow_opts)
-                    ReflowRightBuffer(reflow_opts, right_bufnr,
-                        \ left_bufnr, right_bufnr)
-                endif
-                # Return to left window
-                var left_winid = get(win_findbuf(left_bufnr), 0, -1)
-                if left_winid != -1
-                    win_gotoid(left_winid)
-                endif
-            endif
-        endif
-    finally
-        &hidden = saved_hidden
-    endtry
 enddef
 
 export def ToggleReflowMode()
@@ -1335,6 +1074,105 @@ export def UndoCleave()
     TeardownCleave(original_bufnr, left_bufnr, right_bufnr)
 enddef
 
+def RestoreOriginalBufferOptions(original_bufnr: number, left_bufnr: number)
+    var left_textwidth = getbufvar(left_bufnr, '&textwidth', 0)
+    if left_textwidth > 0
+        setbufvar(original_bufnr, '&textwidth', left_textwidth)
+    endif
+    var left_fdc_winid = get(win_findbuf(left_bufnr), 0, -1)
+    var left_foldcolumn = left_fdc_winid != -1
+        \ ? getwinvar(win_id2win(left_fdc_winid), '&foldcolumn', 0)
+        \ : getbufvar(left_bufnr, '&foldcolumn', 0)
+    setbufvar(original_bufnr, '&foldcolumn', left_foldcolumn)
+enddef
+
+def CollectModelineSettings(original_bufnr: number, left_bufnr: number,
+    \ right_bufnr: number, cleave_col: number): dict<any>
+    var ml_settings = getbufvar(original_bufnr, 'cleave_modeline_settings', {})
+    if empty(ml_settings)
+        ml_settings = {}
+    endif
+
+    var left_winid = get(win_findbuf(left_bufnr), 0, -1)
+    ml_settings.tw = getbufvar(left_bufnr, '&textwidth', 0)
+    ml_settings.fdc = left_winid != -1
+        \ ? getwinvar(win_id2win(left_winid), '&foldcolumn', 0)
+        \ : getbufvar(left_bufnr, '&foldcolumn', 0)
+    if ml_settings.tw > 0 && cleave_col > ml_settings.tw
+        g:cleave_gutter = cleave_col - ml_settings.tw - 1
+    endif
+    ml_settings.wm = g:cleave_gutter
+    ml_settings.cc = cleave_col
+    var ve_val = getbufvar(right_bufnr, '&virtualedit', '')
+    ml_settings.ve = !empty(ve_val) ? ve_val : 'all'
+    return ml_settings
+enddef
+
+def ApplyWindowModelineSettings(original_bufnr: number, ml_settings: dict<any>)
+    var winid = get(win_findbuf(original_bufnr), 0, -1)
+    if winid != -1
+        if has_key(ml_settings, 'cc') && ml_settings.cc > 0
+            setwinvar(win_id2win(winid),
+                \ '&colorcolumn', string(ml_settings.cc))
+        endif
+        if has_key(ml_settings, 'fdc')
+            setwinvar(win_id2win(winid),
+                \ '&foldcolumn', ml_settings.fdc)
+        endif
+    endif
+    if has_key(ml_settings, 've') && !empty(ml_settings.ve)
+        &virtualedit = ml_settings.ve
+    endif
+enddef
+
+export def FinalizeSession(combined_lines: list<string>,
+    \ opts: dict<any> = {})
+    var [original_bufnr, left_bufnr, right_bufnr] = ResolveBuffers()
+
+    if original_bufnr == -1 || left_bufnr == -1 || right_bufnr == -1
+        echoerr "Cleave: Not a cleave buffer or buffers not found."
+        return
+    endif
+
+    var left_info = getbufvar(left_bufnr, 'cleave', {})
+    var cleave_col = get(left_info, 'col', -1)
+    var update_modeline = get(opts, 'update_modeline', true)
+
+    if update_modeline && cleave_col == -1
+        echoerr "Cleave: Missing cleave column information."
+        return
+    endif
+
+    if !bufloaded(original_bufnr)
+        bufload(original_bufnr)
+    endif
+
+    deletebufline(original_bufnr, 1, '$')
+    undojoin
+    setbufline(original_bufnr, 1, combined_lines)
+
+    RestoreOriginalBufferOptions(original_bufnr, left_bufnr)
+
+    if cleave_col != -1
+        setbufvar(original_bufnr, 'cleave_col_last', cleave_col)
+    endif
+
+    if update_modeline
+        var ml_settings = CollectModelineSettings(original_bufnr, left_bufnr,
+            \ right_bufnr, cleave_col)
+        cleave#modeline#Ensure(original_bufnr, ml_settings)
+        TeardownCleave(original_bufnr, left_bufnr, right_bufnr)
+        ApplyWindowModelineSettings(original_bufnr, ml_settings)
+    else
+        TeardownCleave(original_bufnr, left_bufnr, right_bufnr)
+    endif
+
+    var message = get(opts, 'message', 'Cleave: Buffers joined successfully.')
+    if !empty(message)
+        echomsg message
+    endif
+enddef
+
 # Called via BufWipeout autocmd when a cleave buffer is manually killed.
 # Clears b:cleave on the surviving peer so commands don't operate on
 # dead buffers.
@@ -1368,15 +1206,12 @@ export def OnCleaveBufferWiped()
     endif
 enddef
 
-# Optional {mode} argument: 'inline' or 'column'.
-# When omitted, auto-detects from the session's split_mode.
 export def JoinBuffers(mode: string = '')
-    if !empty(mode) && mode !=# 'inline' && mode !=# 'column'
-        echoerr "Cleave: Invalid join mode '" .. mode .. "'. Use 'inline' or 'column'."
+    if !empty(mode) && mode !=# 'column'
+        echoerr "Cleave: Invalid join mode '" .. mode .. "'. Use 'column'."
         return
     endif
 
-    # Get buffer numbers using helper function
     var [original_bufnr, left_bufnr, right_bufnr] = ResolveBuffers()
 
     if original_bufnr == -1 || left_bufnr == -1 || right_bufnr == -1
@@ -1385,122 +1220,44 @@ export def JoinBuffers(mode: string = '')
     endif
 
     var left_info = getbufvar(left_bufnr, 'cleave', {})
-    var is_inline = !empty(mode)
-        \ ? mode ==# 'inline'
-        \ : get(left_info, 'split_mode', 'column') ==# 'inline'
+    var split_mode = get(left_info, 'split_mode', 'column')
+    if split_mode !=# 'column'
+        echoerr "Cleave: This session must be closed with its format-specific export command."
+        return
+    endif
 
-    # Get content from both buffers
     var left_lines = getbufline(left_bufnr, 1, '$')
     var right_lines = getbufline(right_bufnr, 1, '$')
 
-    var combined_lines: list<string>
+    var cleave_col = get(left_info, 'col', -1)
 
-    if is_inline
-        combined_lines = MergeInlineContent(left_lines, right_lines)
-    else
-        var cleave_col = get(left_info, 'col', -1)
-
-        if cleave_col == -1
-            echoerr "Cleave: Missing cleave column information."
-            return
-        endif
-
-        combined_lines = []
-        var max_lines = max([len(left_lines), len(right_lines)])
-
-        for i in range(max_lines)
-            var left_line = (i < len(left_lines)) ? left_lines[i] : ''
-            var right_line = (i < len(right_lines)) ? right_lines[i] : ''
-
-            var combined_line: string
-            if empty(right_line)
-                combined_line = left_line
-            else
-                var left_len = strdisplaywidth(left_line)
-                var padding_needed = cleave_col - 1 - left_len
-                var padding = padding_needed > 0 ? repeat(' ', padding_needed) : ''
-
-                combined_line = left_line .. padding .. right_line
-            endif
-
-            add(combined_lines, combined_line)
-        endfor
+    if cleave_col == -1
+        echoerr "Cleave: Missing cleave column information."
+        return
     endif
 
-    # Update the original buffer
-    # Load the buffer first if it's not loaded
-    if !bufloaded(original_bufnr)
-        bufload(original_bufnr)
-    endif
-    
-    # First clear the buffer, then set new content as a single undo step
-    deletebufline(original_bufnr, 1, '$')
-    undojoin
-    setbufline(original_bufnr, 1, combined_lines)
+    var combined_lines: list<string> = []
+    var max_lines = max([len(left_lines), len(right_lines)])
 
-    # Restore options from left buffer to original
-    var left_textwidth = getbufvar(left_bufnr, '&textwidth', 0)
-    if left_textwidth > 0
-        setbufvar(original_bufnr, '&textwidth', left_textwidth)
-    endif
-    var left_fdc_winid = get(win_findbuf(left_bufnr), 0, -1)
-    var left_foldcolumn = left_fdc_winid != -1
-        \ ? getwinvar(win_id2win(left_fdc_winid), '&foldcolumn', 0)
-        \ : getbufvar(left_bufnr, '&foldcolumn', 0)
-    setbufvar(original_bufnr, '&foldcolumn', left_foldcolumn)
+    for i in range(max_lines)
+        var left_line = (i < len(left_lines)) ? left_lines[i] : ''
+        var right_line = (i < len(right_lines)) ? right_lines[i] : ''
 
-    if is_inline
-        TeardownCleave(original_bufnr, left_bufnr, right_bufnr)
-        echomsg "Cleave: Buffers joined (inline notes merged)."
-    else
-        var cleave_col = get(left_info, 'col', -1)
+        var combined_line: string
+        if empty(right_line)
+            combined_line = left_line
+        else
+            var left_len = strdisplaywidth(left_line)
+            var padding_needed = cleave_col - 1 - left_len
+            var padding = padding_needed > 0 ? repeat(' ', padding_needed) : ''
 
-        var last_col = get(getbufvar(left_bufnr, 'cleave', {}), 'col', -1)
-        if last_col != -1
-            setbufvar(original_bufnr, 'cleave_col_last', last_col)
+            combined_line = left_line .. padding .. right_line
         endif
 
-        # Collect modeline settings before teardown (buffers still exist)
-        var ml_settings = getbufvar(original_bufnr, 'cleave_modeline_settings', {})
-        if empty(ml_settings)
-            ml_settings = {}
-        endif
-        var left_winid = get(win_findbuf(left_bufnr), 0, -1)
-        ml_settings.tw = getbufvar(left_bufnr, '&textwidth', 0)
-        ml_settings.fdc = left_winid != -1
-            \ ? getwinvar(win_id2win(left_winid), '&foldcolumn', 0)
-            \ : getbufvar(left_bufnr, '&foldcolumn', 0)
-        if ml_settings.tw > 0 && cleave_col > ml_settings.tw
-            g:cleave_gutter = cleave_col - ml_settings.tw - 1
-        endif
-        ml_settings.wm = g:cleave_gutter
-        ml_settings.cc = cleave_col
-        var ve_val = getbufvar(right_bufnr, '&virtualedit', '')
-        ml_settings.ve = !empty(ve_val) ? ve_val : 'all'
+        add(combined_lines, combined_line)
+    endfor
 
-        # Write modeline text before teardown (original buffer content exists)
-        cleave#modeline#Ensure(original_bufnr, ml_settings)
-
-        TeardownCleave(original_bufnr, left_bufnr, right_bufnr)
-
-        # Apply window-local settings after teardown (original buffer is now visible)
-        var winid = get(win_findbuf(original_bufnr), 0, -1)
-        if winid != -1
-            if has_key(ml_settings, 'cc') && ml_settings.cc > 0
-                setwinvar(win_id2win(winid),
-                    \ '&colorcolumn', string(ml_settings.cc))
-            endif
-            if has_key(ml_settings, 'fdc')
-                setwinvar(win_id2win(winid),
-                    \ '&foldcolumn', ml_settings.fdc)
-            endif
-        endif
-        if has_key(ml_settings, 've') && !empty(ml_settings.ve)
-            &virtualedit = ml_settings.ve
-        endif
-
-        echomsg "Cleave: Buffers joined successfully."
-    endif
+    FinalizeSession(combined_lines)
 enddef
 
 def NormalizeReflowMode(mode: string): string
@@ -1534,7 +1291,7 @@ def DefaultReflowOptions(width: number): dict<any>
         \ }
 enddef
 
-def ResolveReflowOptions(width: number, mode_override: string): dict<any>
+export def ResolveReflowOptions(width: number, mode_override: string): dict<any>
     var mode = CurrentReflowMode()
     if !empty(mode_override)
         var override = NormalizeReflowMode(mode_override)

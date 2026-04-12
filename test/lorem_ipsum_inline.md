@@ -1,31 +1,9 @@
 vim: cc=91 tw=79 ve=all fdc=5 wm=3
 
-Sapien eget mi proin sed. Scelerisque felis imperdiet proin ^[In metus vulputate eu scelerisque felis imperdiet proin fermentum leo. At lectus urna duis convallis convallis tellus id. Turpis egestas maecenas pharetra convallis posuere morbi. Nunc mattis enim ut tellus elementum sagittis vitae et. Eu consequat ac felis donec et. Libero nunc consequat interdum varius sit amet mattis vulputate.]
-fermentum leo. Eget aliquet nibh praesent tristique magna sit.
-Interdum velit laoreet id donec ultrices tincidunt arcu. Arcu
-dictum varius duis at consectetur. Etiam sit amet nisl purus in
-mollis. Iaculis nunc sed augue lacus. Tristique magna sit amet
-purus gravida quis blandit turpis cursus. Tincidunt dui ut ornare
-lectus sit amet est. Dolor purus non enim praesent elementum
-facilisis leo vel fringilla. Natoque penatibus et magnis dis
-parturient. Mollis aliquam ut porttitor leo. Ultrices mi tempus
-imperdiet nulla malesuada. In ornare quam viverra orci sagittis
-eu. Nunc eget lorem dolor sed viverra ipsum nunc aliquet
-bibendum. Cras sed felis eget velit aliquet sagittis id
-consectetur purus. Convallis convallis tellus id interdum velit
-laoreet id donec ultrices. Duis at consectetur lorem donec.
-Consectetur adipiscing elit ut aliquam purus.
+Sapien eget mi proin sed. Scelerisque felis imperdiet proin ^[In metus vulputate eu scelerisque felis imperdiet proin fermentum leo. At lectus urna duis convallis convallis tellus id. Turpis egestas maecenas pharetra convallis posuere morbi. Nunc mattis enim ut tellus elementum sagittis vitae et. Eu consequat ac felis donec et. Libero nunc consequat interdum varius sit amet mattis vulputate.] fermentum leo. Eget aliquet nibh praesent tristique magna sit.  Interdum velit laoreet id donec ultrices tincidunt arcu. Arcu dictum varius duis at consectetur. Etiam sit amet nisl purus in mollis. Iaculis nunc sed augue lacus. Tristique magna sit amet purus gravida quis blandit turpis cursus. Tincidunt dui ut ornare lectus sit amet est. Dolor purus non enim praesent elementum facilisis leo vel fringilla. Natoque penatibus et magnis dis parturient. Mollis aliquam ut porttitor leo. Ultrices mi tempus imperdiet nulla malesuada. In ornare quam viverra orci sagittis eu. Nunc eget lorem dolor sed viverra ipsum nunc aliquet bibendum. Cras sed felis eget velit aliquet sagittis id consectetur purus. Convallis convallis tellus id interdum velit laoreet id donec ultrices. Duis at consectetur lorem donec.  Consectetur adipiscing elit ut aliquam purus.
 
 
-In metus vulputate eu scelerisque felis imperdiet proin fermentum ^[Ultricies integer quis auctor elit sed vulputate mi sit amet. In dictum non consectetur a erat nam at. A diam maecenas sed enim ut sem.  Pellentesque elit eget gravida cum.]
-leo. At lectus urna duis convallis convallis tellus id. Turpis
-egestas maecenas pharetra convallis posuere morbi. Nunc mattis
-enim ut tellus elementum sagittis vitae et. Eu consequat ac felis
-donec et. Libero nunc consequat interdum varius sit amet mattis
-vulputate. Ultricies integer quis auctor elit sed vulputate mi
-sit amet. In dictum non consectetur a erat nam at. A diam
-maecenas sed enim ut sem. Pellentesque elit eget gravida cum.
-
+In metus vulputate eu scelerisque felis imperdiet proin fermentum ^[Ultricies integer quis auctor elit sed vulputate mi sit amet. In dictum non consectetur a erat nam at. A diam maecenas sed enim ut sem.  Pellentesque elit eget gravida cum.] leo. At lectus urna duis convallis convallis tellus id. Turpis egestas maecenas pharetra convallis posuere morbi. Nunc mattis enim ut tellus elementum sagittis vitae et. Eu consequat ac felis donec et. Libero nunc consequat interdum varius sit amet mattis vulputate. Ultricies integer quis auctor elit sed vulputate mi sit amet. In dictum non consectetur a erat nam at. A diam maecenas sed enim ut sem. Pellentesque elit eget gravida cum.
 
 
 Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
@@ -40,21 +18,7 @@ vitae elementum. Leo duis ut diam quam. Dui faucibus in ornare
 quam viverra. Sed vulputate mi sit amet mauris. Ultricies
 tristique nulla aliquet enim tortor.
 
-     Sapien eget mi proin sed. Scelerisque felis imperdiet proin ^[In fermentum posuere urna nec tincidunt.]
-fermentum leo. Eget aliquet nibh praesent tristique magna sit.
-Interdum velit laoreet id donec ultrices tincidunt arcu. Arcu
-dictum varius duis at consectetur. Etiam sit amet nisl purus in
-mollis. Iaculis nunc sed augue lacus. Tristique magna sit amet
-purus gravida quis blandit turpis cursus. Tincidunt dui ut ornare
-lectus sit amet est. Dolor purus non enim praesent elementum
-facilisis leo vel fringilla. Natoque penatibus et magnis dis
-parturient. Mollis aliquam ut porttitor leo. Ultrices mi tempus
-imperdiet nulla malesuada. In ornare quam viverra orci sagittis
-eu. Nunc eget lorem dolor sed viverra ipsum nunc aliquet
-bibendum. Cras sed felis eget velit aliquet sagittis id
-consectetur purus. Convallis convallis tellus id interdum velit
-laoreet id donec ultrices. Duis at consectetur lorem donec.
-Consectetur adipiscing elit ut aliquam purus.
+     Sapien eget mi proin sed. Scelerisque felis imperdiet proin ^[In fermentum posuere urna nec tincidunt.] fermentum leo. Eget aliquet nibh praesent tristique magna sit.  Interdum velit laoreet id donec ultrices tincidunt arcu. Arcu dictum varius duis at consectetur. Etiam sit amet nisl purus in mollis. Iaculis nunc sed augue lacus. Tristique magna sit amet purus gravida quis blandit turpis cursus. Tincidunt dui ut ornare ^[a second note] lectus sit amet est. Dolor purus non enim praesent elementum facilisis leo vel fringilla. Natoque penatibus et magnis dis parturient. Mollis aliquam ut porttitor leo. Ultrices mi tempus imperdiet nulla malesuada. In ornare quam viverra orci sagittis eu. Nunc eget lorem dolor sed viverra ipsum nunc aliquet bibendum. Cras sed felis eget velit aliquet sagittis id consectetur purus. Convallis convallis tellus id interdum velit laoreet id donec ultrices. Duis at consectetur lorem donec.  Consectetur adipiscing elit ut aliquam purus.
 
 In metus vulputate eu scelerisque felis imperdiet proin fermentum
 leo. At lectus urna duis convallis convallis tellus id. Turpis

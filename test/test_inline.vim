@@ -5,6 +5,7 @@ set nocompatible
 set cpo&vim
 set rtp+=.
 runtime plugin/cleave.vim
+runtime plugin/cleave_inline.vim
 
 function! AssertEqual(expected, actual, message)
     if a:expected != a:actual
@@ -29,7 +30,7 @@ function! TestSplitInlineBasic()
 
     " Single note on a single line
     let lines = ['Hello world ^[This is a note] and more text.']
-    let [left, right, nmap] = cleave#SplitInlineContent(lines)
+    let [left, right, nmap] = cleave#inline#SplitContent(lines)
 
     let total += 1
     let passed += AssertEqual(['Hello world  and more text.'], left, 'Basic split: left removes ^[...]')
@@ -49,7 +50,7 @@ function! TestSplitInlineMultipleNotes()
 
     " Two notes on the same line
     let lines = ['Text ^[Note one] middle ^[Note two] end.']
-    let [left, right, nmap] = cleave#SplitInlineContent(lines)
+    let [left, right, nmap] = cleave#inline#SplitContent(lines)
 
     " First note goes on line 1, second creates a continuation line
     let total += 1
@@ -74,7 +75,7 @@ function! TestSplitInlineNoNotes()
 
     " Lines without any inline notes pass through unchanged
     let lines = ['Plain text line.', 'Another plain line.']
-    let [left, right, nmap] = cleave#SplitInlineContent(lines)
+    let [left, right, nmap] = cleave#inline#SplitContent(lines)
 
     let total += 1
     let passed += AssertEqual(lines, left, 'No notes: left unchanged')
@@ -99,7 +100,7 @@ function! TestSplitInlineMixedLines()
         \ 'Second paragraph ^[A margin note] continues here.',
         \ 'Third line no note.',
     \ ]
-    let [left, right, nmap] = cleave#SplitInlineContent(lines)
+    let [left, right, nmap] = cleave#inline#SplitContent(lines)
 
     let total += 1
     let passed += AssertEqual('First paragraph text.', left[0], 'Mixed: line 1 unchanged')
@@ -131,7 +132,7 @@ function! TestMergeInlineBasic()
 
     let left = ['Hello world  and more text.']
     let right = ['This is a note']
-    let merged = cleave#MergeInlineContent(left, right)
+    let merged = cleave#inline#MergeContent(left, right)
 
     let total += 1
     let passed += AssertEqual(['Hello world  and more text. ^[This is a note]'], merged, 'Basic merge: note re-inserted')
@@ -148,7 +149,7 @@ function! TestMergeInlineMultiLineNote()
     " Multi-line right paragraph merges into a single ^[...] note
     let left = ['Main text here.', 'More left text.']
     let right = ['First part of note', 'second part of note']
-    let merged = cleave#MergeInlineContent(left, right)
+    let merged = cleave#inline#MergeContent(left, right)
 
     let total += 1
     let passed += AssertEqual(2, len(merged), 'Multi-line note: output has 2 lines')
@@ -168,7 +169,7 @@ function! TestMergeInlineNoNotes()
 
     let left = ['Plain text.', 'More text.']
     let right = ['', '']
-    let merged = cleave#MergeInlineContent(left, right)
+    let merged = cleave#inline#MergeContent(left, right)
 
     let total += 1
     let passed += AssertEqual(left, merged, 'No-notes merge: left passed through')
@@ -184,7 +185,7 @@ function! TestMergeInlineMixed()
 
     let left = ['Line one.', '', 'Line three.', 'Line four.']
     let right = ['', '', 'A note', '']
-    let merged = cleave#MergeInlineContent(left, right)
+    let merged = cleave#inline#MergeContent(left, right)
 
     let total += 1
     let passed += AssertEqual('Line one.', merged[0], 'Mixed merge: line 1 no note')
@@ -230,7 +231,7 @@ function! TestMergeInlineReflowedParagraph()
         \ '',
         \ '',
     \ ]
-    let merged = cleave#MergeInlineContent(left, right)
+    let merged = cleave#inline#MergeContent(left, right)
 
     " Should produce 8 lines: first line has the whole note, rest are plain
     let total += 1
@@ -277,7 +278,7 @@ function! TestMultipleInlineNotesAcrossDocument()
         \ 'Final thought. ^[Conclusion note]',
     \ ]
 
-    let [left, right, nmap] = cleave#SplitInlineContent(lines)
+    let [left, right, nmap] = cleave#inline#SplitContent(lines)
 
     " Exactly 4 notes extracted
     let total += 1
@@ -331,7 +332,7 @@ function! TestMultipleInlineNotesAcrossDocument()
     let passed += AssertEqual(len(lines), len(right), 'Multi-doc: right line count matches input')
 
     " Round-trip merge should reproduce original
-    let merged = cleave#MergeInlineContent(left, right)
+    let merged = cleave#inline#MergeContent(left, right)
     let total += 1
     let passed += AssertEqual(lines, merged, 'Multi-doc: round-trip preserves original')
 
@@ -350,16 +351,16 @@ function! TestSplitMergeRoundTrip()
 
     " Notes at end of line round-trip perfectly
     let original = ['Some text more words. ^[A note]']
-    let [left, right, nmap] = cleave#SplitInlineContent(original)
-    let merged = cleave#MergeInlineContent(left, right)
+    let [left, right, nmap] = cleave#inline#SplitContent(original)
+    let merged = cleave#inline#MergeContent(left, right)
 
     let total += 1
     let passed += AssertEqual(original, merged, 'Round-trip: end-of-line note preserved')
 
     " Inline note moves to end-of-line on merge (expected behavior)
     let inline = ['Some text ^[A note] more words.']
-    let [left2, right2, nmap2] = cleave#SplitInlineContent(inline)
-    let merged2 = cleave#MergeInlineContent(left2, right2)
+    let [left2, right2, nmap2] = cleave#inline#SplitContent(inline)
+    let merged2 = cleave#inline#MergeContent(left2, right2)
 
     let total += 1
     let passed += AssertEqual(['Some text  more words. ^[A note]'], merged2, 'Round-trip: inline note moves to end')
@@ -367,8 +368,8 @@ function! TestSplitMergeRoundTrip()
     " Multiple notes on same line: split creates continuation lines which
     " merge joins into a single note (v1 limits to one note per line)
     let multi = ['Text ^[Note A] middle ^[Note B] end.']
-    let [left3, right3, nmap3] = cleave#SplitInlineContent(multi)
-    let merged3 = cleave#MergeInlineContent(left3, right3)
+    let [left3, right3, nmap3] = cleave#inline#SplitContent(multi)
+    let merged3 = cleave#inline#MergeContent(left3, right3)
 
     let total += 1
     let passed += AssertEqual(['Text  middle  end. ^[Note A Note B]', ''], merged3, 'Round-trip: multiple notes joined into one')
@@ -381,8 +382,8 @@ function! TestSplitMergeRoundTrip()
         \ '',
         \ 'Paragraph two no notes.',
     \ ]
-    let [left4, right4, nmap4] = cleave#SplitInlineContent(mixed)
-    let merged4 = cleave#MergeInlineContent(left4, right4)
+    let [left4, right4, nmap4] = cleave#inline#SplitContent(mixed)
+    let merged4 = cleave#inline#MergeContent(left4, right4)
 
     let total += 1
     let passed += AssertEqual(mixed, merged4, 'Round-trip: mixed document preserved')
@@ -392,16 +393,13 @@ function! TestSplitMergeRoundTrip()
 endfunction
 
 " ============================================================================
-" AutoCleave inline detection tests
+" Explicit inline import/export command tests
 " ============================================================================
 
-function! TestInlineAutoDetectMarkdown()
-    echomsg "=== TestInlineAutoDetectMarkdown ==="
+function! TestCleaveImportCommand()
+    echomsg "=== TestCleaveImportCommand ==="
     let passed = 0
     let total = 0
-
-    " g:cleave_inline_mode = 'auto' (default) with markdown filetype
-    let g:cleave_inline_mode = 'auto'
 
     new
     setlocal filetype=markdown
@@ -417,13 +415,11 @@ function! TestInlineAutoDetectMarkdown()
     edit! /tmp/test_inline_auto.md
     setlocal filetype=markdown
 
-    Cleave
+    CleaveImport
 
-    " Should have split into two windows
     let total += 1
-    let passed += AssertEqual(v:true, winnr('$') >= 2, 'Auto inline: split into 2+ windows')
+    let passed += AssertEqual(v:true, winnr('$') >= 2, 'Import: split into 2+ windows')
 
-    " Left buffer should NOT contain ^[ markup
     let left_lines = getline(1, '$')
     let has_markup = v:false
     for line in left_lines
@@ -433,14 +429,12 @@ function! TestInlineAutoDetectMarkdown()
         endif
     endfor
     let total += 1
-    let passed += AssertEqual(v:false, has_markup, 'Auto inline: left buffer has no ^[ markup')
+    let passed += AssertEqual(v:false, has_markup, 'Import: left buffer has no ^[ markup')
 
-    " Check split_mode is 'inline'
     let info = getbufvar(bufnr('%'), 'cleave', {})
     let total += 1
-    let passed += AssertEqual('inline', get(info, 'split_mode', ''), 'Auto inline: split_mode is inline')
+    let passed += AssertEqual('inline', get(info, 'split_mode', ''), 'Import: split_mode is inline')
 
-    " Right buffer should have the note content
     wincmd l
     let right_lines = getline(1, '$')
     let has_note = v:false
@@ -451,7 +445,7 @@ function! TestInlineAutoDetectMarkdown()
         endif
     endfor
     let total += 1
-    let passed += AssertEqual(v:true, has_note, 'Auto inline: right buffer has note content')
+    let passed += AssertEqual(v:true, has_note, 'Import: right buffer has note content')
 
     call cleave#UndoCleave()
     bdelete!
@@ -460,13 +454,10 @@ function! TestInlineAutoDetectMarkdown()
     return [passed, total]
 endfunction
 
-function! TestInlineModeOff()
-    echomsg "=== TestInlineModeOff ==="
+function! TestCleaveDoesNotAutoImport()
+    echomsg "=== TestCleaveDoesNotAutoImport ==="
     let passed = 0
     let total = 0
-
-    " With inline mode off, column-based split should be used
-    let g:cleave_inline_mode = 'off'
 
     new
     setlocal filetype=markdown
@@ -481,33 +472,32 @@ function! TestInlineModeOff()
 
     Cleave
 
-    " Should still split (column mode)
     let total += 1
-    let passed += AssertEqual(v:true, winnr('$') >= 2, 'Mode off: still splits')
+    let passed += AssertEqual(v:true, winnr('$') >= 2, 'Cleave: still splits')
 
-    " split_mode should NOT be 'inline'
     let info = getbufvar(bufnr('%'), 'cleave', {})
     let total += 1
-    let passed += AssertEqual(v:true, get(info, 'split_mode', 'column') !=# 'inline', 'Mode off: not inline mode')
+    let passed += AssertEqual(v:true, get(info, 'split_mode', 'column') !=# 'inline', 'Cleave: not inline mode')
+
+    let left_lines = getline(1, '$')
+    let total += 1
+    let passed += AssertEqual(v:true, join(left_lines, "\n") =~# '\^\[', 'Cleave: markup remains in column split')
 
     call cleave#UndoCleave()
     bdelete!
-    let g:cleave_inline_mode = 'auto'
     call delete('/tmp/test_inline_off.md')
     echomsg passed . "/" . total . " passed"
     return [passed, total]
 endfunction
 
 " ============================================================================
-" CleaveJoin auto-dispatches to inline merge
+" CleaveExport merges inline import sessions
 " ============================================================================
 
-function! TestCleaveJoinInlineDispatch()
-    echomsg "=== TestCleaveJoinInlineDispatch ==="
+function! TestCleaveExportInlineSession()
+    echomsg "=== TestCleaveExportInlineSession ==="
     let passed = 0
     let total = 0
-
-    let g:cleave_inline_mode = 'auto'
 
     new
     setlocal filetype=markdown
@@ -523,15 +513,13 @@ function! TestCleaveJoinInlineDispatch()
     edit! /tmp/test_join_inline.md
     setlocal filetype=markdown
 
-    Cleave
+    CleaveImport
 
-    " Verify inline mode
     let info = getbufvar(bufnr('%'), 'cleave', {})
     let total += 1
-    let passed += AssertEqual('inline', get(info, 'split_mode', ''), 'Join dispatch: inline mode active')
+    let passed += AssertEqual('inline', get(info, 'split_mode', ''), 'Export: inline mode active')
 
-    " CleaveJoin should auto-dispatch to inline merge
-    CleaveJoin
+    CleaveExport
 
     let orig_bufnr = bufnr('/tmp/test_join_inline.md')
     if orig_bufnr > 0
@@ -539,7 +527,7 @@ function! TestCleaveJoinInlineDispatch()
     endif
     let result_lines = getline(1, '$')
     let total += 1
-    let passed += AssertEqual(original_lines, result_lines, 'Join dispatch: CleaveJoin round-trips inline content')
+    let passed += AssertEqual(original_lines, result_lines, 'Export: CleaveExport round-trips inline content')
 
     bdelete!
     call delete('/tmp/test_join_inline.md')
@@ -555,9 +543,6 @@ function! TestColumnBehaviorPreserved()
     echomsg "=== TestColumnBehaviorPreserved ==="
     let passed = 0
     let total = 0
-
-    " Plain text (no inline notes) should use column-based split
-    let g:cleave_inline_mode = 'auto'
 
     new
     call setline(1, [
@@ -582,7 +567,7 @@ function! TestColumnBehaviorPreserved()
 endfunction
 
 " ============================================================================
-" CleaveJoin mode argument validation
+" Join/export command validation
 " ============================================================================
 
 function! TestJoinModeArgValidation()
@@ -600,16 +585,16 @@ function! TestJoinModeArgValidation()
     let total += 1
     let passed += AssertEqual(v:true, caught_invalid, 'Invalid mode rejected')
 
-    " Valid modes should not trigger the invalid-mode error
-    " (they will fail with 'Not a cleave buffer' since we have no session,
-    "  but that's a different error)
-    let v:errmsg = ''
+    " The core join path should reject inline-specific modes.
+    let caught_inline_mode = v:false
     try
         call cleave#JoinBuffers('inline')
+    catch /Invalid join mode/
+        let caught_inline_mode = v:true
     catch
     endtry
     let total += 1
-    let passed += AssertEqual(v:true, v:errmsg !~# 'Invalid join mode', 'inline mode accepted')
+    let passed += AssertEqual(v:true, caught_inline_mode, 'inline mode rejected by core join')
 
     let v:errmsg = ''
     try
@@ -628,6 +613,199 @@ function! TestJoinModeArgValidation()
     let total += 1
     let passed += AssertEqual(v:true, v:errmsg !~# 'Invalid join mode', 'no-arg mode accepted')
 
+    new
+    setlocal filetype=markdown
+    call setline(1, ['Alpha text. ^[Side note]'])
+    setlocal nomodified
+    write! /tmp/test_inline_join_guard.md
+    edit! /tmp/test_inline_join_guard.md
+    setlocal filetype=markdown
+
+    CleaveImport
+
+    let caught_export_guard = v:false
+    try
+        call cleave#JoinBuffers()
+    catch /format-specific export command/
+        let caught_export_guard = v:true
+    catch
+    endtry
+    let total += 1
+    let passed += AssertEqual(v:true, caught_export_guard, 'inline session rejected by core join')
+
+    call cleave#UndoCleave()
+    bdelete!
+    call delete('/tmp/test_inline_join_guard.md')
+
+    echomsg passed . "/" . total . " passed"
+    return [passed, total]
+endfunction
+
+" ============================================================================
+" Left buffer reflow after inline split
+" ============================================================================
+
+function! TestInlineLeftReflow()
+    echomsg "=== TestInlineLeftReflow ==="
+    let passed = 0
+    let total = 0
+
+    " Build a long source line (>100 chars) with two notes
+    let long_line = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. ^[First note] Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris. ^[Second note]'
+
+    new
+    setlocal filetype=markdown
+    setlocal textwidth=60
+    call setline(1, [long_line])
+    setlocal nomodified
+    write! /tmp/test_inline_reflow.md
+    edit! /tmp/test_inline_reflow.md
+    setlocal filetype=markdown
+    setlocal textwidth=60
+
+    CleaveImport
+
+    " Verify inline mode
+    let info = getbufvar(bufnr('%'), 'cleave', {})
+    let total += 1
+    let passed += AssertEqual('inline', get(info, 'split_mode', ''), 'Left reflow: inline mode active')
+
+    " Left buffer should have multiple lines (reflowed from one long line)
+    let left_lines = getline(1, '$')
+    let non_empty = filter(copy(left_lines), 'v:val !~# "^\\s*$"')
+    let total += 1
+    let passed += AssertEqual(v:true, len(non_empty) > 1, 'Left reflow: long line was wrapped (' . len(non_empty) . ' non-empty lines)')
+
+    " No left line should exceed the reflow width (60) by much
+    let max_left_width = 0
+    for line in left_lines
+        let w = strdisplaywidth(substitute(line, '\s\+$', '', ''))
+        if w > max_left_width
+            let max_left_width = w
+        endif
+    endfor
+    let total += 1
+    let passed += AssertEqual(v:true, max_left_width <= 65, 'Left reflow: lines within width limit (' . max_left_width . ')')
+
+    " Right buffer should have notes
+    wincmd l
+    let right_lines = getline(1, '$')
+    let has_first = v:false
+    let has_second = v:false
+    for line in right_lines
+        if line =~# 'First note'
+            let has_first = v:true
+        endif
+        if line =~# 'Second note'
+            let has_second = v:true
+        endif
+    endfor
+    let total += 1
+    let passed += AssertEqual(v:true, has_first, 'Left reflow: right has first note')
+    let total += 1
+    let passed += AssertEqual(v:true, has_second, 'Left reflow: right has second note')
+
+    wincmd h
+    CleaveExport
+
+    let orig_bufnr = bufnr('/tmp/test_inline_reflow.md')
+    if orig_bufnr > 0
+        execute 'buffer' orig_bufnr
+    endif
+    let result_lines = getline(1, '$')
+    " Merged content should contain both notes
+    let merged_text = join(result_lines, "\n")
+    let total += 1
+    let passed += AssertEqual(v:true, merged_text =~# 'First note', 'Left reflow: merged has first note')
+    let total += 1
+    let passed += AssertEqual(v:true, merged_text =~# 'Second note', 'Left reflow: merged has second note')
+
+    bdelete!
+    call delete('/tmp/test_inline_reflow.md')
+    echomsg passed . "/" . total . " passed"
+    return [passed, total]
+endfunction
+
+" ============================================================================
+" Anchor word positioning: note appears on line containing its preceding word
+" ============================================================================
+
+function! TestInlineAnchorWordAlignment()
+    echomsg "=== TestInlineAnchorWordAlignment ==="
+    let passed = 0
+    let total = 0
+
+    " Two notes with distinctive anchor words.  At tw=40 the text wraps so
+    " "aliqua." and "laboris." end up on different lines.
+    let long_line = 'Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. ^[Note about aliqua] Ut enim ad minim veniam quis nostrud exercitation ullamco laboris. ^[Note about laboris]'
+
+    new
+    setlocal filetype=markdown
+    setlocal textwidth=40
+    call setline(1, [long_line])
+    setlocal nomodified
+    write! /tmp/test_anchor_align.md
+    edit! /tmp/test_anchor_align.md
+    setlocal filetype=markdown
+    setlocal textwidth=40
+
+    CleaveImport
+
+    let info = getbufvar(bufnr('%'), 'cleave', {})
+    let total += 1
+    let passed += AssertEqual('inline', get(info, 'split_mode', ''), 'Anchor: inline mode')
+
+    let left_lines = getline(1, '$')
+
+    " Find which left line contains "aliqua."
+    let aliqua_line = -1
+    for lnum in range(len(left_lines))
+        if left_lines[lnum] =~# 'aliqua\.'
+            let aliqua_line = lnum + 1
+            break
+        endif
+    endfor
+    let total += 1
+    let passed += AssertEqual(v:true, aliqua_line > 0, 'Anchor: found aliqua. in left buffer')
+
+    " Find which left line contains "laboris."
+    let laboris_line = -1
+    for lnum in range(len(left_lines))
+        if left_lines[lnum] =~# 'laboris\.'
+            let laboris_line = lnum + 1
+            break
+        endif
+    endfor
+    let total += 1
+    let passed += AssertEqual(v:true, laboris_line > 0, 'Anchor: found laboris. in left buffer')
+
+    " Right buffer: first note should be on the same line as "aliqua."
+    wincmd l
+    let right_lines = getline(1, '$')
+
+    if aliqua_line > 0 && aliqua_line <= len(right_lines)
+        let total += 1
+        let passed += AssertEqual(v:true, right_lines[aliqua_line - 1] =~# 'Note about aliqua', 'Anchor: first note on aliqua line (' . aliqua_line . ')')
+    else
+        let total += 1
+        let passed += AssertEqual(v:true, v:false, 'Anchor: aliqua line out of range')
+    endif
+
+    if laboris_line > 0 && laboris_line <= len(right_lines)
+        let total += 1
+        let passed += AssertEqual(v:true, right_lines[laboris_line - 1] =~# 'Note about laboris', 'Anchor: second note on laboris line (' . laboris_line . ')')
+    else
+        let total += 1
+        let passed += AssertEqual(v:true, v:false, 'Anchor: laboris line out of range')
+    endif
+
+    " The two notes should be on different lines
+    let total += 1
+    let passed += AssertEqual(v:true, aliqua_line != laboris_line, 'Anchor: notes on different lines')
+
+    call cleave#UndoCleave()
+    bdelete!
+    call delete('/tmp/test_anchor_align.md')
     echomsg passed . "/" . total . " passed"
     return [passed, total]
 endfunction
@@ -675,19 +853,25 @@ function! RunInlineTests()
     let [p, t] = TestSplitMergeRoundTrip()
     let total_passed += p | let total_tests += t
 
-    let [p, t] = TestInlineAutoDetectMarkdown()
+    let [p, t] = TestCleaveImportCommand()
     let total_passed += p | let total_tests += t
 
-    let [p, t] = TestInlineModeOff()
+    let [p, t] = TestCleaveDoesNotAutoImport()
     let total_passed += p | let total_tests += t
 
-    let [p, t] = TestCleaveJoinInlineDispatch()
+    let [p, t] = TestCleaveExportInlineSession()
     let total_passed += p | let total_tests += t
 
     let [p, t] = TestColumnBehaviorPreserved()
     let total_passed += p | let total_tests += t
 
     let [p, t] = TestJoinModeArgValidation()
+    let total_passed += p | let total_tests += t
+
+    let [p, t] = TestInlineLeftReflow()
+    let total_passed += p | let total_tests += t
+
+    let [p, t] = TestInlineAnchorWordAlignment()
     let total_passed += p | let total_tests += t
 
     echomsg "================================="
